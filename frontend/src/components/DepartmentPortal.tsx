@@ -1,42 +1,21 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ugFlag from '../assets/images/ug.png';
-import officialImg from '../assets/images/official.png';
+import officialImg from '../assets/images/admin.png';
+import { User } from '../lib/api';
 import './PageStyles.css';
 
-const DepartmentPortal: React.FC = () => {
+interface DepartmentPortalProps {
+  user: User;
+}
+
+const DepartmentPortal: React.FC<DepartmentPortalProps> = ({ user }) => {
   const { departmentId } = useParams<{ departmentId: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  // Mock data for document queues
-  const mockDocuments = {
-    nira: [
-      { id: 'NIRA001', type: 'ID Application', citizen: 'John Doe', status: 'Pending Review', priority: 'High', submitted: '2024-01-15' },
-      { id: 'NIRA002', type: 'ID Renewal', citizen: 'Jane Smith', status: 'Under Verification', priority: 'Medium', submitted: '2024-01-14' },
-      { id: 'NIRA003', type: 'Lost ID Report', citizen: 'Mike Johnson', status: 'Approved', priority: 'High', submitted: '2024-01-13' }
-    ],
-    ursb: [
-      { id: 'URSB001', type: 'Vehicle Registration', citizen: 'Alice Brown', status: 'Payment Pending', priority: 'Medium', submitted: '2024-01-15' },
-      { id: 'URSB002', type: 'Driving License', citizen: 'Bob Wilson', status: 'Under Review', priority: 'High', submitted: '2024-01-14' },
-      { id: 'URSB003', type: 'Ownership Transfer', citizen: 'Carol Davis', status: 'Completed', priority: 'Low', submitted: '2024-01-12' }
-    ],
-    immigration: [
-      { id: 'IMM001', type: 'Passport Application', citizen: 'David Lee', status: 'Biometrics Pending', priority: 'High', submitted: '2024-01-15' },
-      { id: 'IMM002', type: 'Visa Application', citizen: 'Emma Taylor', status: 'Under Review', priority: 'Medium', submitted: '2024-01-14' },
-      { id: 'IMM003', type: 'Work Permit', citizen: 'Frank Miller', status: 'Approved', priority: 'High', submitted: '2024-01-13' }
-    ],
-    finance: [
-      { id: 'FIN001', type: 'Tax Return', citizen: 'Grace White', status: 'Under Assessment', priority: 'High', submitted: '2024-01-15' },
-      { id: 'FIN002', type: 'VAT Registration', citizen: 'Henry Green', status: 'Document Review', priority: 'Medium', submitted: '2024-01-14' },
-      { id: 'FIN003', type: 'Business Permit', citizen: 'Ivy Black', status: 'Completed', priority: 'Low', submitted: '2024-01-12' }
-    ],
-    health: [
-      { id: 'HLT001', type: 'Medical Certificate', citizen: 'Jack Blue', status: 'Medical Review', priority: 'High', submitted: '2024-01-15' },
-      { id: 'HLT002', type: 'Health Permit', citizen: 'Kate Red', status: 'Under Review', priority: 'Medium', submitted: '2024-01-14' },
-      { id: 'HLT003', type: 'Vaccination Record', citizen: 'Leo Yellow', status: 'Completed', priority: 'Low', submitted: '2024-01-13' }
-    ]
-  };
+  // Real documents will be loaded from the API
+  const [documents] = useState<Array<{ id: string; type: string; citizen: string; status: string; priority: string; submitted: string }>>([]);
 
   const departmentConfig = {
     nira: {
@@ -82,7 +61,6 @@ const DepartmentPortal: React.FC = () => {
   };
 
   const currentDept = departmentConfig[departmentId as keyof typeof departmentConfig];
-  const documents = mockDocuments[departmentId as keyof typeof mockDocuments] || [];
 
   if (!currentDept) {
     return (
@@ -124,7 +102,7 @@ const DepartmentPortal: React.FC = () => {
     <div className="page-container" style={{ backgroundImage: `url(${ugFlag})` }}>
       <div className="page-content">
         <div className="page-header">
-          <img src={officialImg} alt="Official" className="page-icon" />
+          <img src={officialImg} alt="Official" className="official-icon-image" />
           <h1 className="page-title">{currentDept.name} Portal</h1>
           <p className="page-subtitle">Document Processing & Management System</p>
         </div>
@@ -242,34 +220,40 @@ const DepartmentPortal: React.FC = () => {
                 <div>Submitted</div>
                 <div>Actions</div>
               </div>
-              {documents.map((doc) => (
-                <div key={doc.id} className="table-row">
-                  <div className="doc-id">{doc.id}</div>
-                  <div className="doc-type">{doc.type}</div>
-                  <div className="doc-citizen">{doc.citizen}</div>
-                  <div>
-                    <span 
-                      className="status-badge" 
-                      style={{ backgroundColor: getStatusColor(doc.status) }}
-                    >
-                      {doc.status}
-                    </span>
-                  </div>
-                  <div>
-                    <span 
-                      className="priority-badge" 
-                      style={{ backgroundColor: getPriorityColor(doc.priority) }}
-                    >
-                      {doc.priority}
-                    </span>
-                  </div>
-                  <div className="doc-date">{doc.submitted}</div>
-                  <div className="doc-actions">
-                    <button className="action-btn-small primary">Review</button>
-                    <button className="action-btn-small secondary">View</button>
-                  </div>
+              {documents.length === 0 ? (
+                <div className="empty-state">
+                  <p>No documents in queue yet. Documents will appear here when citizens start submitting.</p>
                 </div>
-              ))}
+              ) : (
+                documents.map((doc) => (
+                  <div key={doc.id} className="table-row">
+                    <div className="doc-id">{doc.id}</div>
+                    <div className="doc-type">{doc.type}</div>
+                    <div className="doc-citizen">{doc.citizen}</div>
+                    <div>
+                      <span 
+                        className="status-badge" 
+                        style={{ backgroundColor: getStatusColor(doc.status) }}
+                      >
+                        {doc.status}
+                      </span>
+                    </div>
+                    <div>
+                      <span 
+                        className="priority-badge" 
+                        style={{ backgroundColor: getPriorityColor(doc.priority) }}
+                      >
+                        {doc.priority}
+                      </span>
+                    </div>
+                    <div className="doc-date">{doc.submitted}</div>
+                    <div className="doc-actions">
+                      <button className="action-btn-small primary">Review</button>
+                      <button className="action-btn-small secondary">View</button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}

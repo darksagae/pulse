@@ -1,17 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
-import './App.css';
 import ugFlag from './assets/images/ug.png';
-import citizenImg from './assets/images/citizen.png';
-import officialImg from './assets/images/official.png';
-import adminImg from './assets/images/admin.png';
+import citizenIcon from './assets/images/citizen.png';
+import officialIcon from './assets/images/official.png';
+import adminIcon from './assets/images/admin.png';
+import './App.css';
+import './styles/glassmorphism.css';
 import CitizenPage from './components/CitizenPage';
 import OfficialPage from './components/OfficialPage';
 import AdminPage from './components/AdminPage';
-import DepartmentPortal from './components/DepartmentPortal';
-import DatabaseTest from './test-database';
-import SimpleTest from './simple-test';
-import TestSupabase from './test-supabase';
+import OfficialDashboard from './components/OfficialDashboard';
+import { health } from './lib/api';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,10 +27,11 @@ const HomePage: React.FC = () => {
     navigate('/admin');
   };
 
+
   return (
     <div className="App" style={{ backgroundImage: `url(${ugFlag})` }}>
       <div className="container">
-        <div className="logo-section">
+        <div className="logo-section glass-card-lg">
           <h1 className="logo">PublicPulse</h1>
           <p className="tagline">Document Processing Automation System</p>
         </div>
@@ -43,50 +43,110 @@ const HomePage: React.FC = () => {
         </div>
 
         <div className="access-options">
-          <div className="access-card citizen">
-            <img src={citizenImg} alt="Citizen" className="access-image" />
-            <p>Access public services and submit documents</p>
-            <button className="access-btn" onClick={handleCitizenClick}>Enter as Citizen</button>
+          <div className="access-card citizen glass-card">
+            <div className="access-content">
+              <img 
+                src={citizenIcon}
+                alt="Citizen Portal" 
+                className="citizen-icon-image"
+              />
+              <h3>Citizen Portal</h3>
+              <p>Access public services and submit documents</p>
+              <button className="access-btn glass-btn glass-btn-primary" onClick={handleCitizenClick}>Enter as Citizen</button>
+            </div>
           </div>
 
-          <div className="access-card official">
-            <img src={officialImg} alt="Official" className="access-image" />
-            <p>Process and manage citizen documents</p>
-            <button className="access-btn" onClick={handleOfficialClick}>Enter as Official</button>
+          <div className="access-card official glass-card">
+            <div className="access-content">
+              <img 
+                src={officialIcon}
+                alt="Official Portal" 
+                className="official-icon-image"
+              />
+              <h3>Official Portal</h3>
+              <p>Process and review citizen documents</p>
+              <button className="access-btn glass-btn glass-btn-secondary" onClick={handleOfficialClick}>Enter as Official</button>
+            </div>
           </div>
 
-          <div className="access-card admin">
-            <img src={adminImg} alt="Admin" className="access-image" />
-            <p>System administration and configuration</p>
-            <button className="access-btn" onClick={handleAdminClick}>Enter as Admin</button>
+          <div className="access-card admin glass-card">
+            <div className="access-content">
+              <img 
+                src={adminIcon}
+                alt="Admin Portal" 
+                className="admin-icon-image"
+              />
+              <h3>Admin Portal</h3>
+              <p>Manage system and oversee operations</p>
+              <button className="access-btn glass-btn glass-btn-warning" onClick={handleAdminClick}>Enter as Admin</button>
+            </div>
           </div>
         </div>
+
       </div>
     </div>
   );
 };
 
-const AppRoutes: React.FC = () => {
-  return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/citizen" element={<CitizenPage />} />
-      <Route path="/official" element={<OfficialPage />} />
-      <Route path="/official/:departmentId" element={<DepartmentPortal />} />
-      <Route path="/admin" element={<AdminPage />} />
-      <Route path="/test-db" element={<DatabaseTest />} />
-      <Route path="/simple" element={<SimpleTest />} />
-      <Route path="/test-supabase" element={<TestSupabase />} />
-    </Routes>
-  );
-};
+const App: React.FC = () => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [backendStatus, setBackendStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
 
-function App() {
+  // Check backend connection on app start
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        // Check backend health
+        await health.check();
+        setBackendStatus('connected');
+      } catch (error) {
+        console.error('Backend connection failed:', error);
+        setBackendStatus('disconnected');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkBackend();
+  }, []);
+
+  // Show loading screen while checking backend
+  if (isLoading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner"></div>
+        <p>Connecting to PublicPulse...</p>
+      </div>
+    );
+  }
+
+  // Show error if backend is disconnected
+  if (backendStatus === 'disconnected') {
+    return (
+      <div className="error-screen">
+        <h2>⚠️ Backend Connection Error</h2>
+        <p>Unable to connect to the PublicPulse backend server.</p>
+        <p>Please make sure the backend is running on port 8000.</p>
+        <button onClick={() => window.location.reload()}>Retry</button>
+      </div>
+    );
+  }
+
   return (
     <Router>
-      <AppRoutes />
+      <div className="app-container">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          
+          {/* Direct access to portals - no authentication required */}
+          <Route path="/citizen" element={<CitizenPage />} />
+          <Route path="/official" element={<OfficialPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/department/:deptId" element={<OfficialDashboard />} />
+        </Routes>
+      </div>
     </Router>
   );
-}
+};
 
 export default App;

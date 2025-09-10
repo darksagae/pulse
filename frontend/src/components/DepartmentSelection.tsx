@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ugFlag from '../assets/images/ug.png';
-import officialImg from '../assets/images/official.png';
+import officialImg from '../assets/images/admin.png';
 import './PageStyles.css';
 
 const DepartmentSelection: React.FC = () => {
@@ -23,7 +23,7 @@ const DepartmentSelection: React.FC = () => {
     <div className="page-container" style={{ backgroundImage: `url(${ugFlag})` }}>
       <div className="page-content">
         <div className="page-header">
-          <img src={officialImg} alt="Official" className="page-icon" />
+          <img src={officialImg} alt="Official" className="official-icon-image" />
           <h1 className="page-title">Select Department</h1>
           <p className="page-subtitle">Choose your department to access the official portal</p>
         </div>
