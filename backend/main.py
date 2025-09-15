@@ -24,11 +24,20 @@ app = FastAPI(
 )
 
 # CORS Configuration
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001", 
+    "https://publicpulse.vercel.app",
+    "https://publicpulse.netlify.app",
+    "https://*.vercel.app",
+    "https://*.netlify.app"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure properly for production
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -101,11 +110,54 @@ async def get_admin_documents():
         "message": "PublicPulse API is working!"
     }
 
+@app.get("/api/admin/stats")
+async def get_admin_stats():
+    return {
+        "total_users": 150,
+        "active_sessions": 12,
+        "documents_processed": 1250,
+        "system_uptime": "99.8%",
+        "pending_approvals": 8,
+        "completed_today": 45,
+        "ai_processed": 890,
+        "ai_accuracy": 94.5,
+        "ai_processing_time": "2.3s",
+        "human_review_rate": 12.5
+    }
+
+@app.get("/api/admin/department-stats")
+async def get_department_stats():
+    return [
+        {
+            "name": "Immigration",
+            "documents": 450,
+            "completed": 380,
+            "pending": 70,
+            "efficiency": 84.4
+        },
+        {
+            "name": "NIRA", 
+            "documents": 620,
+            "completed": 510,
+            "pending": 110,
+            "efficiency": 82.3
+        },
+        {
+            "name": "URSB",
+            "documents": 180,
+            "completed": 165,
+            "pending": 15,
+            "efficiency": 91.7
+        }
+    ]
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    host = os.environ.get("HOST", "0.0.0.0")
+    host = "0.0.0.0"
     
     print(f"🚀 Starting PublicPulse API v2.0 on {host}:{port}")
+    print(f"📡 Health check: http://{host}:{port}/health")
+    print(f"📚 API docs: http://{host}:{port}/docs")
     
     uvicorn.run(
         "main:app",
