@@ -1,5 +1,5 @@
 // API service layer for connecting frontend to backend
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://publicpulse-production.up.railway.app';
 
 // Types
 export interface User {
@@ -138,11 +138,20 @@ class APIClient {
   }) {
     return this.request<{
       message: string;
+      user_id: string;
       verification_token: string;
-      email: string;
-    }>('/api/auth/register-citizen', {
+    }>('/auth/register-citizen', {
       method: 'POST',
-      body: JSON.stringify(userData),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        national_id: userData.national_id,
+        email: userData.email,
+        full_name: userData.full_name,
+        phone_number: userData.phone_number,
+        password: userData.password
+      }).toString(),
     });
   }
 
@@ -159,7 +168,7 @@ class APIClient {
   async loginCitizen(national_id: string, password: string) {
     const response = await this.request<AuthResponse>('/auth/login-citizen', {
       method: 'POST',
-      body: JSON.stringify({ national_id, password }),
+      body: JSON.stringify({ email: national_id, password }),
     });
     
     if (response.access_token) {
