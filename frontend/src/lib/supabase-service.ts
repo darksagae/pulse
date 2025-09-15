@@ -211,7 +211,7 @@ export const subscribeToDocumentUpdates = (documentId: string, callback: (docume
         table: 'documents',
         filter: `id=eq.${documentId}`
       }, 
-      (payload) => {
+      (payload: any) => {
         callback(payload.new as DocumentData);
       }
     )
@@ -228,7 +228,7 @@ export const subscribeToUserNotifications = (userId: string, callback: (notifica
         table: 'notifications',
         filter: `user_id=eq.${userId}`
       }, 
-      (payload) => {
+      (payload: any) => {
         callback(payload.new as NotificationData);
       }
     )

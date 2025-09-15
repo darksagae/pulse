@@ -1,7 +1,7 @@
 // Gemini AI Service for Document Processing
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const API_KEY = 'AIzaSyDgv0kd_pY0heH0mxwpY1HuMgBrOwD0IhU';
+const API_KEY = process.env.REACT_APP_GEMINI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 // Document processing interface
