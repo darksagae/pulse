@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "name": "publicpulse-frontend",
   "builds": [
     {
       "src": "package.json",
