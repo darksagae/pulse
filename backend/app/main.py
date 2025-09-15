@@ -43,13 +43,14 @@ async def health_check():
     return {"status": "healthy", "message": "API is running"}
 
 # Include routers
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from routers import documents, users, admin
-app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
-app.include_router(users.router, prefix="/api/users", tags=["Users"])
-app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+try:
+    from routers import documents, users, admin
+    app.include_router(documents.router, prefix="/api/documents", tags=["Documents"])
+    app.include_router(users.router, prefix="/api/users", tags=["Users"])
+    app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+except ImportError as e:
+    print(f"Warning: Could not import routers: {e}")
+    print("API will run with basic endpoints only")
 
 if __name__ == "__main__":
     uvicorn.run(
