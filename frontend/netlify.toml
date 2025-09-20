@@ -1,0 +1,14 @@
+[build]
+  publish = "build"
+  command = "npm run build"
+
+[build.environment]
+  REACT_APP_API_URL = "https://publicpulse-production.up.railway.app"
+  REACT_APP_SUPABASE_URL = "https://fqhulfipcitbfyhwypos.supabase.co"
+  REACT_APP_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxaHVsZmlwY2l0YmZ5aHd5cG9zIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxMjQwNTksImV4cCI6MjA3MjcwMDA1OX0.8LDzhBRJ-CUzIAUImY9XX2pNBm571bkf-0DoaJSGxC4"
+  # REACT_APP_GEMINI_API_KEY = "your-gemini-api-key-here"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
