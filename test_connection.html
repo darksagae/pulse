@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PublicPulse Connection Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-result { 
+            margin: 10px 0; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        .success { background: rgba(76, 175, 80, 0.3); border-color: #4caf50; }
+        .error { background: rgba(244, 67, 54, 0.3); border-color: #f44336; }
+        .info { background: rgba(33, 150, 243, 0.3); border-color: #2196f3; }
+        button { 
+            padding: 12px 24px; 
+            margin: 8px; 
+            cursor: pointer; 
+            border: none;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        button:hover { background: rgba(255,255,255,0.3); transform: translateY(-2px); }
+        .status { font-weight: bold; margin-bottom: 10px; }
+        .details { font-size: 14px; opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 PublicPulse Frontend-Backend Connection Test</h1>
+        <p>Testing connection between React frontend (port 3000) and FastAPI backend (port 8000)</p>
+        
+        <div id="status" class="test-result info">
+            <div class="status">Status: Ready to test</div>
+            <div class="details">Click the buttons below to test different aspects of the connection</div>
+        </div>
+        
+        <div id="results"></div>
+        
+        <div style="margin-top: 20px;">
+            <button onclick="testBasicConnection()">Test Basic Connection</button>
+            <button onclick="testAPIEndpoints()">Test API Endpoints</button>
+            <button onclick="testAIIntegration()">Test AI Integration</button>
+            <button onclick="testDocumentFlow()">Test Document Flow</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        let testCount = 0;
+        
+        function addResult(message, type = 'info', details = '') {
+            testCount++;
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = `
+                <div class="status">Test ${testCount}: ${message}</div>
+                <div class="details">${details}</div>
+            `;
+            resultsDiv.appendChild(resultDiv);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `test-result ${type}`;
+            statusDiv.innerHTML = `
+                <div class="status">Status: ${message}</div>
+                <div class="details">Last updated: ${new Date().toLocaleTimeString()}</div>
+            `;
+        }
+        
+        async function testBasicConnection() {
+            updateStatus('Testing basic connection...', 'info');
+            addResult('Testing basic connection...', 'info', 'Checking if backend is reachable');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addResult('✅ Backend is running!', 'success', `Status: ${data.status}, AI Service: ${data.ai_service}`);
+                    updateStatus('Backend connection successful', 'success');
+                } else {
+                    addResult('❌ Backend responded with error', 'error', `Status code: ${response.status}`);
+                    updateStatus('Backend connection failed', 'error');
+                }
+            } catch (error) {
+                addResult('❌ Cannot connect to backend', 'error', `Error: ${error.message}`);
+                updateStatus('Backend connection failed', 'error');
+            }
+        }
+        
+        async function testAPIEndpoints() {
+            updateStatus('Testing API endpoints...', 'info');
+            addResult('Testing API endpoints...', 'info', 'Checking all available endpoints');
+            
+            const endpoints = [
+                { name: 'Admin Stats', url: '/api/admin/stats', method: 'GET' },
+                { name: 'AI Performance', url: '/api/admin/ai-performance', method: 'GET' },
+                { name: 'Document Submit', url: '/api/documents/submit', method: 'POST', body: { document_type: 'test', user_id: 'test_user' } },
+                { name: 'Citizen Documents', url: '/api/users/citizen/my-documents?user_id=test_user', method: 'GET' }
+            ];
+            
+            let successCount = 0;
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const options = {
+                        method: endpoint.method,
+                        headers: { 'Content-Type': 'application/json' }
+                    };
+                    
+                    if (endpoint.body) {
+                        options.body = JSON.stringify(endpoint.body);
+                    }
+                    
+                    const response = await fetch(`${API_BASE_URL}${endpoint.url}`, options);
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        addResult(`✅ ${endpoint.name}`, 'success', `Response: ${JSON.stringify(data).substring(0, 100)}...`);
+                        successCount++;
+                    } else {
+                        addResult(`❌ ${endpoint.name}`, 'error', `Error ${response.status}: ${data.detail || 'Unknown error'}`);
+                    }
+                } catch (error) {
+                    addResult(`❌ ${endpoint.name}`, 'error', `Network error: ${error.message}`);
+                }
+            }
+            
+            updateStatus(`API test completed: ${successCount}/${endpoints.length} successful`, successCount === endpoints.length ? 'success' : 'error');
+        }
+        
+        async function testAIIntegration() {
+            updateStatus('Testing AI integration...', 'info');
+            addResult('Testing AI integration...', 'info', 'Testing Gemini AI with your API key');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/ai/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        document_type: 'national_id',
+                        images: ['mock_image_data']
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    const aiResult = data.ai_result;
+                    addResult('✅ AI Integration Working!', 'success', 
+                        `Confidence: ${(aiResult.ai_confidence * 100).toFixed(1)}%, ` +
+                        `Quality: ${(aiResult.ai_quality_score * 100).toFixed(1)}%, ` +
+                        `Fraud Risk: ${(aiResult.ai_fraud_risk * 100).toFixed(1)}%`
+                    );
+                    updateStatus('AI integration successful', 'success');
+                } else {
+                    addResult('❌ AI Test failed', 'error', data.message || 'Unknown error');
+                    updateStatus('AI integration failed', 'error');
+                }
+            } catch (error) {
+                addResult('❌ AI Test error', 'error', `Network error: ${error.message}`);
+                updateStatus('AI integration failed', 'error');
+            }
+        }
+        
+        async function testDocumentFlow() {
+            updateStatus('Testing document workflow...', 'info');
+            addResult('Testing document workflow...', 'info', 'Testing complete document processing flow');
+            
+            try {
+                // Step 1: Submit document
+                addResult('Step 1: Submitting document...', 'info', 'Creating new document');
+                const submitResponse = await fetch(`${API_BASE_URL}/api/documents/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        document_type: 'national_id',
+                        user_id: 'test_citizen_001',
+                        department_id: 'nira',
+                        images: ['mock_image_1', 'mock_image_2']
+                    })
+                });
+                
+                const submitData = await submitResponse.json();
+                
+                if (submitResponse.ok && submitData.success) {
+                    addResult('✅ Document submitted', 'success', `Document ID: ${submitData.document_id}`);
+                    
+                    // Step 2: Get document
+                    addResult('Step 2: Retrieving document...', 'info', 'Fetching document details');
+                    const getResponse = await fetch(`${API_BASE_URL}/api/documents/${submitData.document_id}`);
+                    const getData = await getResponse.json();
+                    
+                    if (getResponse.ok) {
+                        addResult('✅ Document retrieved', 'success', `Status: ${getData.status}`);
+                        
+                        // Step 3: Update status
+                        addResult('Step 3: Updating document status...', 'info', 'Testing status update');
+                        const updateResponse = await fetch(`${API_BASE_URL}/api/documents/update-status`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                document_id: submitData.document_id,
+                                status: 'under_review'
+                            })
+                        });
+                        
+                        const updateData = await updateResponse.json();
+                        
+                        if (updateResponse.ok && updateData.success) {
+                            addResult('✅ Document workflow complete!', 'success', 'All steps successful');
+                            updateStatus('Document workflow successful', 'success');
+                        } else {
+                            addResult('❌ Status update failed', 'error', updateData.message || 'Unknown error');
+                        }
+                    } else {
+                        addResult('❌ Document retrieval failed', 'error', 'Could not fetch document');
+                    }
+                } else {
+                    addResult('❌ Document submission failed', 'error', submitData.message || 'Unknown error');
+                }
+            } catch (error) {
+                addResult('❌ Document workflow error', 'error', `Network error: ${error.message}`);
+                updateStatus('Document workflow failed', 'error');
+            }
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            testCount = 0;
+            updateStatus('Results cleared', 'info');
+        }
+        
+        // Auto-run basic connection test on page load
+        window.onload = () => {
+            updateStatus('Ready to test', 'info');
+            addResult('🚀 PublicPulse Connection Test Started', 'info', 'Click the buttons above to test different aspects of the system');
+        };
+    </script>
+</body>
+</html>

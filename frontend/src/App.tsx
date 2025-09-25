@@ -9,7 +9,11 @@ import './styles/glassmorphism.css';
 import CitizenPage from './components/CitizenPage';
 import OfficialPage from './components/OfficialPage';
 import AdminPage from './components/AdminPage';
-import OfficialDashboard from './components/OfficialDashboard';
+import DepartmentPortal from './components/DepartmentPortal';
+import DocumentReviewPage from './components/DocumentReviewPage';
+import ConnectionTest from './ConnectionTest';
+import EnvironmentTest from './EnvironmentTest';
+import DirectConnectionTest from './DirectConnectionTest';
 import { health } from './lib/api';
 
 const HomePage: React.FC = () => {
@@ -142,7 +146,11 @@ const App: React.FC = () => {
           <Route path="/citizen" element={<CitizenPage />} />
           <Route path="/official" element={<OfficialPage />} />
           <Route path="/admin" element={<AdminPage />} />
-          <Route path="/department/:deptId" element={<OfficialDashboard />} />
+          <Route path="/department/:departmentId" element={<DepartmentPortal user={{ id: '1', full_name: 'Official User', email: 'official@example.com', role: 'official' }} />} />
+          <Route path="/document/:cardNumber" element={<DocumentReviewPage />} />
+          <Route path="/test" element={<ConnectionTest />} />
+          <Route path="/env" element={<EnvironmentTest />} />
+          <Route path="/direct" element={<DirectConnectionTest />} />
         </Routes>
       </div>
     </Router>

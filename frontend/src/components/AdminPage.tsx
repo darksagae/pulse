@@ -11,7 +11,6 @@ import {
 } from '../lib/backend-service';
 import { User, admin } from '../lib/api';
 import OfficialRegistrationForm from './Admin/OfficialRegistrationForm';
-import AdminDocumentReview from './AdminDocumentReview';
 import './PageStyles.css';
 import './Admin/Admin.css';
 import '../styles/glassmorphism.css';
@@ -19,7 +18,6 @@ import '../styles/glassmorphism.css';
 const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [documents, setDocuments] = useState<DocumentData[]>([]);
-  const [showDocumentReview, setShowDocumentReview] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<DocumentData | null>(null);
   const [reviewComment, setReviewComment] = useState('');
@@ -35,6 +33,8 @@ const AdminPage: React.FC = () => {
     fraud_detection: true
   });
   const [aiActionLoading, setAiActionLoading] = useState<string | null>(null);
+  const [departmentApprovals, setDepartmentApprovals] = useState<any[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
   
   // Realistic empty state data for brand new system
   const currentStats = systemStats || {
@@ -51,6 +51,28 @@ const AdminPage: React.FC = () => {
   };
 
   // Load admin data on component mount
+  // Load department approvals from localStorage
+  const loadDepartmentApprovals = () => {
+    try {
+      const departmentAdminData = JSON.parse(localStorage.getItem('departmentAdminData') || '{}');
+      const allApprovals: any[] = [];
+      
+      // Flatten all department approvals into one array
+      Object.keys(departmentAdminData).forEach(department => {
+        const deptApprovals = departmentAdminData[department] || [];
+        allApprovals.push(...deptApprovals);
+      });
+      
+      // Sort by timestamp (newest first)
+      allApprovals.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      
+      setDepartmentApprovals(allApprovals);
+      console.log('Loaded department approvals:', allApprovals);
+    } catch (error) {
+      console.error('Error loading department approvals:', error);
+    }
+  };
+
   useEffect(() => {
     const loadAdminData = async () => {
       setLoading(true);
@@ -72,6 +94,7 @@ const AdminPage: React.FC = () => {
     };
 
     loadAdminData();
+    loadDepartmentApprovals();
   }, []);
 
   const handleOfficialRegistered = (official: any) => {
@@ -166,20 +189,6 @@ const AdminPage: React.FC = () => {
   ];
 
 
-  if (showDocumentReview) {
-    return (
-      <div>
-        <button 
-          className="action-btn secondary" 
-          onClick={() => setShowDocumentReview(false)}
-          style={{ margin: '20px', position: 'absolute', top: 0, left: 0, zIndex: 1000 }}
-        >
-          ← Back to Admin Dashboard
-        </button>
-        <AdminDocumentReview />
-      </div>
-    );
-  }
 
   return (
     <div className="page-container" style={{ backgroundImage: `url(${ugFlag})` }}>
@@ -194,18 +203,6 @@ const AdminPage: React.FC = () => {
           <p className="page-subtitle">System Administration & Management Dashboard</p>
         </div>
 
-        {/* Admin Document Review Section */}
-        <div className="admin-document-review-section glass-card">
-          <h3>Document Review Management</h3>
-          <p>Review documents submitted by officials for final approval</p>
-          <button 
-            className="action-btn primary"
-            onClick={() => setShowDocumentReview(true)}
-            style={{ marginTop: '15px' }}
-          >
-            📄 Review Submitted Documents
-          </button>
-        </div>
 
         {/* Admin Navigation Tabs */}
         <div className="admin-tabs glass-nav">
@@ -229,6 +226,15 @@ const AdminPage: React.FC = () => {
             onClick={() => setActiveTab('ai-management')}
           >
             AI Management
+          </button>
+          <button 
+            className={`glass-nav-item ${activeTab === 'department-approvals' ? 'active' : ''}`}
+            onClick={() => setActiveTab('department-approvals')}
+          >
+            Department Approvals
+            {departmentApprovals.length > 0 && (
+              <span className="glass-badge">{departmentApprovals.length}</span>
+            )}
           </button>
           <button 
             className={`glass-nav-item ${activeTab === 'departments' ? 'active' : ''}`}
@@ -753,6 +759,101 @@ const AdminPage: React.FC = () => {
               <div className="empty-state">
                 <p>No users registered yet. Users will appear here once they start using the system.</p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Department Approvals Tab */}
+        {activeTab === 'department-approvals' && (
+          <div className="admin-department-approvals">
+            <div className="approvals-header glass-card">
+              <h3>Department Approval Results</h3>
+              <p>Review approval decisions made by department officials</p>
+              <div className="approval-filters">
+                <select 
+                  value={selectedDepartment} 
+                  onChange={(e) => setSelectedDepartment(e.target.value)}
+                  className="glass-select"
+                >
+                  <option value="all">All Departments</option>
+                  <option value="nira">NIRA</option>
+                  <option value="ursb">URSB</option>
+                  <option value="immigration">Immigration</option>
+                  <option value="finance">Finance</option>
+                  <option value="health">Health</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="approvals-grid">
+              {departmentApprovals
+                .filter(approval => selectedDepartment === 'all' || approval.department === selectedDepartment)
+                .map((approval) => (
+                  <div key={approval.id} className="approval-card glass-card">
+                    <div className="approval-header">
+                      <div className="approval-info">
+                        <h4>Card: {approval.cardNumber}</h4>
+                        <p className="approval-department">{approval.department.toUpperCase()}</p>
+                        <p className="approval-document">{approval.documentType.replace('_', ' ')}</p>
+                      </div>
+                      <div className="approval-status">
+                        <span 
+                          className={`status-badge ${approval.status}`}
+                          style={{
+                            backgroundColor: approval.status === 'approved' ? '#10b981' : 
+                                           approval.status === 'rejected' ? '#ef4444' : '#f59e0b'
+                          }}
+                        >
+                          {approval.status.toUpperCase()}
+                        </span>
+                        <p className="approval-time">
+                          {new Date(approval.timestamp).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="approval-feedback">
+                      <h5>Feedback:</h5>
+                      <p className="feedback-message">{approval.feedback.message}</p>
+                      <p className="feedback-action">{approval.feedback.action}</p>
+                      <p className="feedback-next">{approval.feedback.nextSteps}</p>
+                      <div className="feedback-priority">
+                        <span className={`priority-badge ${approval.feedback.priority}`}>
+                          {approval.feedback.priority.toUpperCase()} PRIORITY
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="approval-actions">
+                      <button 
+                        className="glass-btn glass-btn-primary"
+                        onClick={() => {
+                          // View document details
+                          console.log('View document:', approval.cardNumber);
+                        }}
+                      >
+                        View Document
+                      </button>
+                      <button 
+                        className="glass-btn glass-btn-secondary"
+                        onClick={() => {
+                          // Send notification to citizen
+                          console.log('Notify citizen:', approval.citizenId);
+                        }}
+                      >
+                        Notify Citizen
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+              {departmentApprovals.length === 0 && (
+                <div className="empty-state">
+                  <div className="empty-icon">📋</div>
+                  <h3>No Department Approvals Yet</h3>
+                  <p>Approval results will appear here when officials make decisions on submitted documents.</p>
+                </div>
+              )}
             </div>
           </div>
         )}

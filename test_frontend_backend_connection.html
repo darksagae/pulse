@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend-Backend Connection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>🔗 Frontend-Backend Connection Test</h1>
+    <p>Testing connection between frontend (port 3000) and backend (port 8000)</p>
+    
+    <div id="results"></div>
+    
+    <button onclick="testConnection()">Test Connection</button>
+    <button onclick="testAPI()">Test API Endpoints</button>
+    <button onclick="testAI()">Test AI Integration</button>
+    
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        
+        function addResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            resultsDiv.appendChild(resultDiv);
+        }
+        
+        async function testConnection() {
+            addResult('Testing basic connection...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    addResult(`✅ Backend is running! Status: ${data.status}`, 'success');
+                    addResult(`📊 AI Service: ${data.ai_service}`, 'success');
+                } else {
+                    addResult(`❌ Backend responded with error: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Cannot connect to backend: ${error.message}`, 'error');
+                addResult('💡 Make sure the backend is running on port 8000', 'info');
+            }
+        }
+        
+        async function testAPI() {
+            addResult('Testing API endpoints...', 'info');
+            
+            const endpoints = [
+                { name: 'Admin Stats', url: '/api/admin/stats' },
+                { name: 'AI Performance', url: '/api/admin/ai-performance' },
+                { name: 'Document Submit', url: '/api/documents/submit', method: 'POST', body: { document_type: 'test' } }
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const options = {
+                        method: endpoint.method || 'GET',
+                        headers: { 'Content-Type': 'application/json' }
+                    };
+                    
+                    if (endpoint.body) {
+                        options.body = JSON.stringify(endpoint.body);
+                    }
+                    
+                    const response = await fetch(`${API_BASE_URL}${endpoint.url}`, options);
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        addResult(`✅ ${endpoint.name}: Working`, 'success');
+                    } else {
+                        addResult(`❌ ${endpoint.name}: Error ${response.status}`, 'error');
+                    }
+                } catch (error) {
+                    addResult(`❌ ${endpoint.name}: ${error.message}`, 'error');
+                }
+            }
+        }
+        
+        async function testAI() {
+            addResult('Testing AI integration...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/ai/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        document_type: 'national_id',
+                        images: ['mock_image_data']
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    addResult(`✅ AI Test: ${data.message}`, 'success');
+                    addResult(`🎯 Confidence: ${(data.ai_result.ai_confidence * 100).toFixed(1)}%`, 'success');
+                    addResult(`📈 Quality: ${(data.ai_result.ai_quality_score * 100).toFixed(1)}%`, 'success');
+                    addResult(`🛡️ Fraud Risk: ${(data.ai_result.ai_fraud_risk * 100).toFixed(1)}%`, 'success');
+                } else {
+                    addResult(`❌ AI Test failed: ${data.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                addResult(`❌ AI Test error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Auto-run basic connection test on page load
+        window.onload = () => {
+            addResult('🚀 Frontend-Backend Connection Test Started', 'info');
+            testConnection();
+        };
+    </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 // API service layer for connecting frontend to backend
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://publicpulse-production.up.railway.app';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 // Types
 export interface User {

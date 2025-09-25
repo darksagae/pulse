@@ -3,16 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import ugFlag from '../assets/images/ug.png';
 import officialIcon from '../assets/images/official.png';
 // import { User } from '../lib/api';
-import DocumentReviewPage from './DocumentReviewPage';
-import DepartmentDocumentReview from './DepartmentDocumentReview';
 import './PageStyles.css';
 import './OfficialPage.css';
 import '../styles/glassmorphism.css';
 
 const OfficialPage: React.FC = () => {
   const navigate = useNavigate();
-  const [showDocumentReview, setShowDocumentReview] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState<{id: string, name: string} | null>(null);
 
   const departments = [
     {
@@ -53,41 +49,9 @@ const OfficialPage: React.FC = () => {
   ];
 
   const handleDepartmentClick = (departmentId: string) => {
-    const department = departments.find(d => d.id === departmentId);
-    if (department) {
-      setSelectedDepartment(department);
-    }
+    navigate(`/department/${departmentId}`);
   };
 
-  const handleBackToDepartments = () => {
-    setSelectedDepartment(null);
-    setShowDocumentReview(false);
-  };
-
-  if (selectedDepartment) {
-    return (
-      <DepartmentDocumentReview 
-        departmentId={selectedDepartment.id}
-        departmentName={selectedDepartment.name}
-        onBack={handleBackToDepartments}
-      />
-    );
-  }
-
-  if (showDocumentReview) {
-    return (
-      <div>
-        <button 
-          className="action-btn secondary" 
-          onClick={handleBackToDepartments}
-          style={{ margin: '20px', position: 'absolute', top: 0, left: 0, zIndex: 1000 }}
-        >
-          ← Back to Departments
-        </button>
-        <DocumentReviewPage />
-      </div>
-    );
-  }
 
   // const handleDepartmentSelect = (departmentId: string) => {
   //   navigate(`/department/${departmentId}`);
@@ -117,20 +81,6 @@ const OfficialPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Document Review Section */}
-        <div className="glass-document-review-section">
-          <div className="glass-card">
-            <h3>Document Management</h3>
-            <p>Review and process citizen-submitted documents</p>
-            <button 
-              className="action-btn primary"
-              onClick={() => setShowDocumentReview(true)}
-              style={{ marginTop: '15px' }}
-            >
-              📄 Review Submitted Documents
-            </button>
-          </div>
-        </div>
 
         {/* Department Selection */}
         <div className="glass-departments-section">

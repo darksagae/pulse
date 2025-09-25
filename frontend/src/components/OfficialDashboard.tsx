@@ -87,7 +87,7 @@ const OfficialDashboard: React.FC = () => {
     
     try {
       // Load department documents
-      const documentsResponse = await fetch(`http://localhost:8000/documents/department/${departmentId}`);
+      const documentsResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/documents/department/${departmentId}`);
       const documentsData = await documentsResponse.json();
       
       console.log('Department documents response:', documentsData);
@@ -193,7 +193,7 @@ const OfficialDashboard: React.FC = () => {
 
     try {
       // Update document status using our new API
-      const response = await fetch('http://localhost:8000/documents/update-status', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/documents/update-status`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -226,7 +226,7 @@ const OfficialDashboard: React.FC = () => {
 
   const handleAssignDocument = async (documentId: string) => {
     try {
-      const response = await fetch('http://localhost:8000/documents/assign', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/documents/assign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

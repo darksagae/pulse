@@ -1,14 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import ugFlag from '../assets/images/ug.png';
 import citizenIcon from '../assets/images/citizen.png';
 import { DocumentData, NotificationData } from '../lib/backend-service';
 import { citizen } from '../lib/api';
+import { geminiAIService, ExtractedData } from '../lib/gemini-ai-service';
 import './PageStyles.css';
 import '../styles/glassmorphism.css';
 
 const CitizenPage: React.FC = () => {
   const [showDocumentSubmission, setShowDocumentSubmission] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -18,11 +18,13 @@ const CitizenPage: React.FC = () => {
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [selectedDocumentType, setSelectedDocumentType] = useState<string>('');
   const [documentDescription, setDocumentDescription] = useState<string>('');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [cardNumber, setCardNumber] = useState<string>('');
+  const [aiExtractionData, setAiExtractionData] = useState<ExtractedData[]>([]);
+  const [isExtracting, setIsExtracting] = useState(false);
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Available document types
   const documentTypes = [
@@ -34,10 +36,30 @@ const CitizenPage: React.FC = () => {
     { value: 'other', label: 'Other Document' }
   ];
 
+  // Department mapping for document routing
+  const departmentMapping = {
+    'national_id': 'nira',
+    'drivers_license': 'ursb',
+    'passport': 'immigration',
+    'birth_certificate': 'nira',
+    'marriage_certificate': 'nira',
+    'other': 'general'
+  };
+
+  // Available departments
+  const departments = [
+    { value: 'nira', label: 'NIRA (National ID & Registration Authority)' },
+    { value: 'ursb', label: 'URSB (Uganda Registration Services Bureau)' },
+    { value: 'immigration', label: 'Immigration (Passports & Visas)' },
+    { value: 'finance', label: 'Finance (Government Revenue)' },
+    { value: 'health', label: 'Health (Medical Services)' },
+    { value: 'education', label: 'Education (Academic Records)' }
+  ];
+
   // Test backend connection
   const testBackendConnection = async () => {
     try {
-      const response = await fetch('http://localhost:8000/health');
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/health`);
       if (response.ok) {
         const data = await response.json();
         console.log('Backend connection test successful:', data);
@@ -55,141 +77,196 @@ const CitizenPage: React.FC = () => {
     }
   };
 
-  // Load user data on component mount
-  useEffect(() => {
-    const loadUserData = async () => {
+  // Load user documents
+  const loadUserDocuments = async () => {
+    try {
       setLoading(true);
-      try {
-        // Test backend connection first
-        const isBackendConnected = await testBackendConnection();
-        if (!isBackendConnected) {
-          console.warn('Backend connection test failed, but continuing with data load...');
-        }
-        
-        // Fetch via backend with Authorization (middleware-protected)
-        const docs = await citizen.getMyDocuments();
-        // Backend returns minimal fields; cast for UI consumption
-        setUserDocuments(docs as unknown as DocumentData[]);
-        
-        // For now, use empty notifications - in real app, this would come from API
-        setNotifications([]);
+      const documents = await citizen.getMyDocuments();
+      setUserDocuments(documents);
       } catch (error) {
-        console.error('Error loading user data:', error);
-        setUserDocuments([]);
+      console.error('Error loading documents:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadUserData();
-  }, []);
+  // Load notifications (mock data for now)
+  const loadNotifications = async () => {
+    try {
+      // Mock notifications since the API doesn't have this method yet
+      const mockNotifications: NotificationData[] = [
+        {
+          id: '1',
+          user_id: 'user_001',
+          document_id: 'doc_001',
+          title: 'Document Submitted',
+          message: 'Your National ID application has been submitted successfully.',
+          type: 'success',
+          read: false,
+          created_at: new Date().toISOString()
+        }
+      ];
+      setNotifications(mockNotifications);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    }
+  };
 
+  // Handle document submission
   const handleDocumentSubmissionClick = () => {
     setShowDocumentSubmission(true);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Under Review': return '#2196F3';
-      case 'Payment Pending': return '#FF9800';
-      case 'Approved': return '#4CAF50';
-      case 'Rejected': return '#F44336';
-      case 'Submitted': return '#9C27B0';
-      case 'ai_processed': return '#3B82F6';
-      default: return '#757575';
+  // Handle file upload
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    setUploadedFiles(prev => [...prev, ...imageFiles]);
+  };
+
+  // Remove uploaded file
+  const removeUploadedFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Auto-select department based on document type
+  const handleDocumentTypeChange = (documentType: string) => {
+    setSelectedDocumentType(documentType);
+    const mappedDepartment = departmentMapping[documentType as keyof typeof departmentMapping];
+    if (mappedDepartment) {
+      setSelectedDepartment(mappedDepartment);
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'ai_processed': return 'AI Processed';
-      default: return status;
-    }
+  // Generate unique card number
+  const generateCardNumber = (department: string, documentType: string) => {
+    const timestamp = Date.now().toString().slice(-6);
+    const deptCode = department.substring(0, 3).toUpperCase();
+    const docCode = documentType.substring(0, 2).toUpperCase();
+    const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `${deptCode}-${docCode}-${timestamp}-${randomNum}`;
   };
 
-  const getProgressPercent = (status: string) => {
-    if (status === 'Approved') return 100;
-    if (status === 'Under Review') return 75;
-    if (status === 'Submitted' || status === 'ai_processed') return 50;
-    return 25;
-  };
-
-  const startCamera = async () => {
+  // Route images to appropriate department
+  const routeImagesToDepartment = async (images: File[], department: string, documentType: string, cardNum: string) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        } 
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setShowCamera(true);
+      setIsExtracting(true);
+      
+      // Convert files to base64 for transmission
+      const imageData = await Promise.all(
+        images.map(file => new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        }))
+      );
+
+      // Extract data using Gemini AI
+      console.log('Starting AI extraction for', images.length, 'images');
+      const extractionResults = await geminiAIService.extractMultipleDocuments(imageData, documentType);
+      
+      // Log all results for debugging
+      console.log('All extraction results:', extractionResults);
+      
+      // Filter successful extractions
+      const successfulExtractions = extractionResults
+        .filter(result => result.success && result.data)
+        .map(result => result.data!);
+      
+      console.log('Successful extractions:', successfulExtractions.length, 'out of', extractionResults.length);
+      setAiExtractionData(successfulExtractions);
+      console.log('AI extraction completed:', successfulExtractions);
+
+      // Create submission data with card number and AI extraction
+      const submissionData = {
+        id: cardNum,
+        documentType,
+        department,
+        images: imageData,
+        timestamp: new Date().toISOString(),
+        citizenId: 'citizen_001', // This would come from user authentication
+        status: 'submitted',
+        cardNumber: cardNum,
+        aiExtractedData: successfulExtractions,
+        aiProcessingTime: extractionResults.reduce((total, result) => total + result.processingTime, 0)
+      };
+
+      // Store in localStorage for department access (in real app, this would be API call)
+      const existingSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
+      if (!existingSubmissions[department]) {
+        existingSubmissions[department] = [];
+      }
+      existingSubmissions[department].push(submissionData);
+      localStorage.setItem('departmentSubmissions', JSON.stringify(existingSubmissions));
+      
+      console.log('Stored submission data with AI extraction:', submissionData);
+      console.log('Updated department submissions:', existingSubmissions);
+
+      // Also store in a global submissions array for tracking
+      const globalSubmissions = JSON.parse(localStorage.getItem('globalSubmissions') || '[]');
+      globalSubmissions.push(submissionData);
+      localStorage.setItem('globalSubmissions', JSON.stringify(globalSubmissions));
+
+      console.log(`Images routed to ${department} department with card number ${cardNum} and AI extraction:`, submissionData);
+      return true;
+    } catch (error) {
+      console.error('Error routing images to department:', error);
+      return false;
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  // Handle document submit
+  const handleDocumentSubmit = async () => {
+    try {
+      setLoading(true);
+      setSubmissionError(null);
+      
+      if (!selectedDocumentType || !selectedDepartment || uploadedFiles.length === 0) {
+        setSubmissionError('Please fill in all required fields and upload at least one image.');
+        return;
+      }
+
+      // Generate card number
+      const generatedCardNumber = generateCardNumber(selectedDepartment, selectedDocumentType);
+      setCardNumber(generatedCardNumber);
+
+      // Route images to the appropriate department
+      const routingSuccess = await routeImagesToDepartment(
+        uploadedFiles, 
+        selectedDepartment, 
+        selectedDocumentType,
+        generatedCardNumber
+      );
+
+      if (routingSuccess) {
+        setSubmissionSuccess(true);
+        setUploadedFiles([]);
+        setSelectedDocumentType('');
+        setSelectedDepartment('');
+        setDocumentDescription('');
+        await loadUserDocuments();
+      } else {
+        throw new Error('Failed to route images to department');
       }
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Unable to access camera. Please check permissions.');
+      console.error('Document submission error:', error);
+      setSubmissionError('Failed to submit document. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      const context = canvas.getContext('2d');
-      
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      if (context) {
-        context.drawImage(video, 0, 0);
-        const imageData = canvas.toDataURL('image/jpeg', 0.8);
-        setCapturedImages(prev => [...prev, imageData]);
-        setShowCamera(false);
-        
-        // Stop camera stream
-        const stream = video.srcObject as MediaStream;
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-      }
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      videoRef.current.srcObject = null;
-    }
-    setShowCamera(false);
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files) {
-      Array.from(files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const result = e.target?.result as string;
-          setCapturedImages(prev => [...prev, result]);
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-  };
-
+  // Clear all images
   const clearAllImages = () => {
     setCapturedImages([]);
+    setUploadedFiles([]);
     setCurrentImageIndex(0);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
+  // Remove image
   const removeImage = (index: number) => {
     setCapturedImages(prev => prev.filter((_, i) => i !== index));
     if (currentImageIndex >= index && currentImageIndex > 0) {
@@ -197,325 +274,291 @@ const CitizenPage: React.FC = () => {
     }
   };
 
-  const nextImage = () => {
-    setCurrentImageIndex(prev => 
-      prev < capturedImages.length - 1 ? prev + 1 : 0
-    );
-  };
-
-  const prevImage = () => {
-    setCurrentImageIndex(prev => 
-      prev > 0 ? prev - 1 : capturedImages.length - 1
-    );
-  };
-
-  // Document submission function - AI processing happens in background
-  const submitDocument = async (images: string[], documentType: string, description: string) => {
-    setLoading(true);
-    setSubmissionSuccess(false);
-    setSubmissionError(null);
-
-    try {
-      console.log('Submitting document...');
-      console.log('Document type:', documentType);
-      console.log('Description:', description);
-      console.log('Images count:', images.length);
-      
-      // Check if user is authenticated
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        throw new Error('User not authenticated. Please login again.');
-      }
-      console.log('Auth token found:', token.substring(0, 20) + '...');
-      
-      // Submit via backend API client (Authorization included)
-      const result = await citizen.submitDocument({
-        document_type: documentType,
-        department_id: null,
-        images,
-        description,
-      });
-      console.log('Submission result:', result);
-      
-      // Show AI processing message
-      setSubmissionSuccess(true);
-      
-      // Refresh user documents via backend
-      try {
-        const docs = await citizen.getMyDocuments();
-        setUserDocuments(docs as unknown as DocumentData[]);
-      } catch (docError) {
-        console.warn('Could not refresh documents:', docError);
-        // Don't fail the submission if we can't refresh documents
-      }
-      
-      // Clear form
-      setCapturedImages([]);
-      setShowDocumentSubmission(false);
-      
-      return result;
-      
-    } catch (error) {
-      console.error('Error submitting document:', error);
-      console.error('Error details:', {
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      
-      let errorMessage = 'Unknown error occurred';
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          errorMessage = 'Network error: Unable to connect to server. Please check your internet connection and try again.';
-        } else if (error.message.includes('User not authenticated')) {
-          errorMessage = 'Authentication error: Please login again.';
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      
-      setSubmissionError(errorMessage);
-      alert(`Failed to submit document: ${errorMessage}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Simple document submission form
-  const handleDocumentSubmit = async () => {
-    if (capturedImages.length === 0) {
-      alert('Please capture or upload at least one image');
-      return;
-    }
-
-    if (!selectedDocumentType) {
-      alert('Please select a document type');
-      return;
-    }
-
-    console.log('Starting document submission...');
-    console.log('Document type:', selectedDocumentType);
-    console.log('Description:', documentDescription);
-    console.log('Images count:', capturedImages.length);
-
-    await submitDocument(capturedImages, selectedDocumentType, documentDescription);
-  };
-
+  // Go back
   const goBack = () => {
     setShowDocumentSubmission(false);
-    setShowCamera(false);
     setCapturedImages([]);
+    setUploadedFiles([]);
     setCurrentImageIndex(0);
-    if (videoRef.current) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
+    setSelectedDocumentType('');
+    setSelectedDepartment('');
+    setDocumentDescription('');
+    setSubmissionError(null);
+    setSubmissionSuccess(false);
+  };
+
+  // Get status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Approved': return '#10b981';
+      case 'Under Review': return '#f59e0b';
+      case 'Rejected': return '#ef4444';
+      default: return '#6b7280';
     }
   };
 
-  // Test function to debug submission
-  const testSubmission = async () => {
-    console.log('Testing submission with mock data...');
-    try {
-      const response = await fetch('http://localhost:8000/documents/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: 'citizen_001',
-          title: 'Test Document',
-          description: 'Test submission from frontend',
-          document_type: 'national_id'
-        })
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Test submission successful:', result);
-        alert('Test submission successful! Check console for details.');
-      } else {
-        console.error('Test submission failed:', response.status, response.statusText);
-        alert('Test submission failed. Check console for details.');
-      }
-    } catch (error) {
-      console.error('Test submission error:', error);
-      alert('Test submission error. Check console for details.');
-    }
+  // Get status progress
+  const getStatusProgress = (status: string) => {
+    if (status === 'Approved') return 100;
+    if (status === 'Under Review') return 75;
+    if (status === 'Submitted' || status === 'ai_processed') return 50;
+    return 25;
   };
+
+  useEffect(() => {
+    testBackendConnection();
+    loadUserDocuments();
+    loadNotifications();
+  }, []);
 
   return (
     <div className="page-container" style={{ backgroundImage: `url(${ugFlag})` }}>
       <div className="page-content">
-        <div className="page-header glass-card-lg">
-          <img 
-            src={citizenIcon}
-            alt="Citizen Portal" 
-            className="citizen-icon-image"
-          />
-          <h1 className="page-title">Citizen Portal</h1>
-          <p className="page-subtitle">Welcome to PublicPulse Citizen Services</p>
-          
-          {/* Connection Status Indicator */}
-          {backendConnected !== null && (
-            <div className="connection-status" style={{
-              marginTop: '10px',
-              padding: '8px 16px',
-              borderRadius: '20px',
-              fontSize: '0.9em',
-              backgroundColor: backendConnected ? '#d4edda' : '#f8d7da',
-              color: backendConnected ? '#155724' : '#721c24',
-              border: `1px solid ${backendConnected ? '#c3e6cb' : '#f5c6cb'}`
-            }}>
-              {backendConnected ? '✅ Connected to server' : '❌ Server connection failed'}
+        <div className="page-header">
+          <div className="header-content">
+            <img src={citizenIcon} alt="Citizen" className="citizen-icon-image" />
+            <div className="header-text">
+              <h1>Citizen Portal</h1>
+              <p>Access your documents and services</p>
             </div>
-          )}
-        </div>
-
-        {/* Navigation Tabs */}
-        <div className="citizen-tabs glass-card">
-          <button 
-            className={`tab-btn glass-button ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
-          >
-            Dashboard
-          </button>
-          <button 
-            className={`tab-btn glass-button ${activeTab === 'documents' ? 'active' : ''}`}
-            onClick={() => setActiveTab('documents')}
-          >
-            My Documents
-          </button>
-          <button 
-            className={`tab-btn glass-button ${activeTab === 'notifications' ? 'active' : ''}`}
-            onClick={() => setActiveTab('notifications')}
-          >
-            Notifications
-            {notifications.filter(n => !n.read).length > 0 && (
-              <span className="notification-badge glass-badge">{notifications.filter(n => !n.read).length}</span>
+          </div>
+          <div className="connection-status">
+            {backendConnected === true && (
+              <span className="status-indicator connected">🟢 Connected</span>
             )}
-          </button>
-          <button 
-            className={`tab-btn glass-button ${activeTab === 'submit' ? 'active' : ''}`}
-            onClick={() => setActiveTab('submit')}
-          >
-            Submit Document
-          </button>
+            {backendConnected === false && (
+              <span className="status-indicator disconnected">🔴 Disconnected</span>
+            )}
+            {backendConnected === null && (
+              <span className="status-indicator checking">🟡 Checking...</span>
+            )}
+          </div>
         </div>
 
-        {/* Dashboard Tab */}
-        {activeTab === 'dashboard' && (
-          <div className="citizen-dashboard">
-            <div className="stats-grid">
-              <div className="stat-card glass-card">
-                <h3>Total Documents</h3>
-                <div className="stat-number">{userDocuments.length}</div>
-              </div>
-              <div className="stat-card glass-card">
-                <h3>In Progress</h3>
-                <div className="stat-number">{userDocuments.filter(d => d.status !== 'Approved').length}</div>
-              </div>
-              <div className="stat-card glass-card">
-                <h3>Completed</h3>
-                <div className="stat-number">{userDocuments.filter(d => d.status === 'Approved').length}</div>
-              </div>
-              <div className="stat-card glass-card">
-                <h3>Unread Notifications</h3>
-                <div className="stat-number">{notifications.filter(n => !n.read).length}</div>
-              </div>
-            </div>
+        {!showDocumentSubmission && (
+          <div className="page-actions">
+            <button className="action-btn secondary">Check Status</button>
+            <button className="action-btn secondary">View History</button>
+          </div>
+        )}
 
-            <div className="recent-activity glass-card">
-              <h3>Recent Activity</h3>
-              <div className="activity-list">
-                {userDocuments.slice(0, 3).map((doc) => (
-                  <div key={doc.id} className="activity-item">
-                    <div className="activity-content">
-                      <h4>{doc.document_type}</h4>
-                      <p>Status: <span style={{ color: getStatusColor(doc.status) }}>{getStatusText(doc.status)}</span></p>
-                      <p>Department: {doc.department_id?.toUpperCase() || 'NIRA'}</p>
-                    </div>
-                    <div className="activity-progress">
-                      <div className="progress-bar">
-                        <div 
-                          className="progress-fill" 
-                          style={{ 
-                            width: `${getProgressPercent(doc.status)}%`,
-                            backgroundColor: getStatusColor(doc.status) 
-                          }}
-                        ></div>
+        {showDocumentSubmission && (
+          <div className="document-submission-interface">
+            <div className="submission-header">
+              <button className="back-btn" onClick={goBack}>
+                ← Back
+          </button>
+              <h2 className="submission-title">Document Submission</h2>
+        </div>
+            
+            {submissionSuccess ? (
+              <div className="success-message">
+                <div className="success-icon">✅</div>
+                <h3>Document Submitted Successfully!</h3>
+                <p>Your document has been routed to the {departments.find(d => d.value === selectedDepartment)?.label} department for processing.</p>
+                <div className="card-number-display">
+                  <h4>Your Reference Card Number:</h4>
+                  <div className="card-number">{cardNumber}</div>
+                  <p className="card-instruction">Please keep this card number safe. Officials will use this number to access your documents.</p>
+                </div>
+                <div className="success-actions">
+                  <button className="action-btn primary" onClick={goBack}>
+                    Submit Another Document
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="submission-form">
+                {/* Document Type Selection */}
+                <div className="form-section">
+                  <label className="form-label">Document Type *</label>
+                  <select 
+                    className="glass-select"
+                    value={selectedDocumentType}
+                    onChange={(e) => handleDocumentTypeChange(e.target.value)}
+                    required
+                  >
+                    <option value="">Select Document Type</option>
+                    {documentTypes.map(type => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Department Selection */}
+                <div className="form-section">
+                  <label className="form-label">Department *</label>
+                  <select 
+                    className="glass-select"
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    required
+                  >
+                    <option value="">Select Department</option>
+                    {departments.map(dept => (
+                      <option key={dept.value} value={dept.value}>
+                        {dept.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Document Description */}
+                <div className="form-section">
+                  <label className="form-label">Description (Optional)</label>
+                  <textarea
+                    className="glass-textarea"
+                    value={documentDescription}
+                    onChange={(e) => setDocumentDescription(e.target.value)}
+                    placeholder="Provide additional details about your document..."
+                    rows={3}
+                  />
+                </div>
+
+                {/* Image Upload */}
+                <div className="form-section">
+                  <label className="form-label">Upload Images *</label>
+                  <div className="upload-area">
+                    <input
+                      type="file"
+                      id="image-upload"
+                      multiple
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="file-input"
+                    />
+                    <label htmlFor="image-upload" className="upload-label">
+                      <div className="upload-icon">📷</div>
+                      <div className="upload-text">
+                        <strong>Click to upload images</strong>
+                        <span>or drag and drop files here</span>
+                      </div>
+                    </label>
+                  </div>
+                  
+                  {/* Uploaded Files Preview */}
+                  {uploadedFiles.length > 0 && (
+                    <div className="uploaded-files">
+                      <h4>Uploaded Images ({uploadedFiles.length})</h4>
+                      <div className="files-grid">
+                        {uploadedFiles.map((file, index) => (
+                          <div key={index} className="file-preview">
+                            <img 
+                              src={URL.createObjectURL(file)} 
+                              alt={`Preview ${index + 1}`}
+                              className="preview-image"
+                            />
+                            <div className="file-info">
+                              <span className="file-name">{file.name}</span>
+                              <span className="file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                            </div>
+                            <button 
+                              className="remove-file-btn"
+                              onClick={() => removeUploadedFile(index)}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
+                  )}
+                </div>
+
+                {/* Error Message */}
+                {submissionError && (
+                  <div className="error-message">
+                    <span className="error-icon">⚠️</span>
+                    {submissionError}
                   </div>
-                ))}
+                )}
+
+                {/* Submit Button */}
+                <div className="form-actions">
+                  <button 
+                    className="action-btn secondary" 
+                    onClick={goBack}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="action-btn primary" 
+                    onClick={handleDocumentSubmit}
+                    disabled={loading || isExtracting || !selectedDocumentType || !selectedDepartment || uploadedFiles.length === 0}
+                  >
+                    {isExtracting ? '🤖 AI Extracting Data...' : 
+                     loading ? 'Submitting...' : 'Submit Document'}
+                  </button>
+                </div>
+            </div>
+            )}
+          </div>
+        )}
+
+        {!showDocumentSubmission && (
+          <div className="page-features">
+            <div className="feature-card glass-card clickable" onClick={handleDocumentSubmissionClick}>
+              <h3>Document Submission</h3>
+              <p>Submit your documents online for processing</p>
+            </div>
+            <div className="feature-card glass-card">
+              <h3>Get Updates</h3>
+              <p>Receive notifications about your document status</p>
+            </div>
+          </div>
+        )}
+
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && !showDocumentSubmission && (
+          <div className="dashboard-content">
+            <div className="stats-grid">
+              <div className="stat-card glass-card">
+                <h3>Documents</h3>
+                <p className="stat-number">{userDocuments.length}</p>
+                <p className="stat-label">Total Documents</p>
+              </div>
+              <div className="stat-card glass-card">
+                <h3>Notifications</h3>
+                <p className="stat-number">{notifications.length}</p>
+                <p className="stat-label">Unread Messages</p>
               </div>
             </div>
           </div>
         )}
 
         {/* Documents Tab */}
-        {activeTab === 'documents' && (
-          <div className="citizen-documents">
-            <div className="section-header glass-card">
-              <h3>My Documents</h3>
-              <p>Track the status of your submitted documents</p>
-            </div>
+        {activeTab === 'documents' && !showDocumentSubmission && (
+          <div className="documents-content">
             <div className="documents-list">
-              {loading ? (
-                <div className="loading-state">
-                  <p>Loading your documents...</p>
-                </div>
-              ) : userDocuments.length > 0 ? (
-                userDocuments.map((doc) => (
-                  <div key={doc.id} className="document-card glass-card">
+              {userDocuments.length > 0 ? (
+                userDocuments.map((doc, index) => (
+                  <div key={index} className="document-card glass-card">
                     <div className="document-header">
-                      <h4>{doc.document_type || 'Document'}</h4>
-                      <div className="status-container">
+                      <h3>{doc.document_type}</h3>
                         <span 
                           className="status-badge" 
                           style={{ backgroundColor: getStatusColor(doc.status) }}
                         >
-                          {getStatusText(doc.status)}
+                        {doc.status}
                         </span>
-                      </div>
-                    </div>
-                    <div className="document-info">
-                      <p><strong>Department:</strong> {doc.department_id?.toUpperCase() || 'NIRA'}</p>
-                      <p><strong>Submitted:</strong> {new Date(doc.created_at || '').toLocaleDateString()}</p>
-                      <p><strong>Last Updated:</strong> {new Date(doc.updated_at || '').toLocaleDateString()}</p>
                     </div>
                     <div className="document-progress">
-                      <div className="progress-header">
-                        <span>Progress</span>
-                        <span>{getProgressPercent(doc.status)}%</span>
-                      </div>
                       <div className="progress-bar">
                         <div 
                           className="progress-fill" 
                           style={{ 
-                            width: `${getProgressPercent(doc.status)}%`,
+                            width: `${getStatusProgress(doc.status)}%`,
                             backgroundColor: getStatusColor(doc.status) 
                           }}
                         ></div>
                       </div>
+                      <span className="progress-text">{getStatusProgress(doc.status)}% Complete</span>
                     </div>
-                    <div className="document-updates">
-                      <h5>Status Updates:</h5>
-                    <div className="update-item">
-                      <div className="update-content">
-                        <p>Document submitted for processing</p>
-                        <small>{new Date(doc.created_at || '').toLocaleDateString()}</small>
-                      </div>
-                    </div>
-                    {doc.status === 'Under Review' && (
-                      <div className="update-item">
-                        <div className="update-content">
-                          <p>Document is under review by officials</p>
-                          <small>Processing time: 2-3 business days</small>
-                        </div>
-                      </div>
-                    )}
+                    <div className="document-details">
+                      <p><strong>Submitted:</strong> {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'N/A'}</p>
+                      <p><strong>Last Updated:</strong> {doc.updated_at ? new Date(doc.updated_at).toLocaleDateString() : 'N/A'}</p>
                     </div>
                   </div>
                 ))
@@ -529,22 +572,19 @@ const CitizenPage: React.FC = () => {
         )}
 
         {/* Notifications Tab */}
-        {activeTab === 'notifications' && (
-          <div className="citizen-notifications">
-            <div className="section-header glass-card">
-              <h3>Notifications</h3>
-              <p>Stay updated with your document status</p>
-            </div>
+        {activeTab === 'notifications' && !showDocumentSubmission && (
+          <div className="notifications-content">
             <div className="notifications-list">
               {notifications.length > 0 ? (
-                notifications.map((notification) => (
-                  <div key={notification.id} className={`notification-item glass-card ${!notification.read ? 'unread' : ''}`}>
-                    <div className="notification-content">
-                      <h4>{notification.title}</h4>
-                      <p>{notification.message}</p>
-                      <small>{new Date(notification.created_at || '').toLocaleString()}</small>
+                notifications.map((notification, index) => (
+                  <div key={index} className="notification-card glass-card">
+                    <div className="notification-header">
+                      <h3>{notification.title}</h3>
+                      <span className="notification-time">
+                        {notification.created_at ? new Date(notification.created_at).toLocaleDateString() : 'N/A'}
+                      </span>
                     </div>
-                    {!notification.read && <div className="unread-indicator"></div>}
+                    <p>{notification.message}</p>
                   </div>
                 ))
               ) : (
@@ -557,20 +597,12 @@ const CitizenPage: React.FC = () => {
         )}
 
         {/* Submit Document Tab */}
-        {activeTab === 'submit' && (
-          <div className="citizen-submit">
-            <div className="section-header glass-card">
-              <h3>Submit Document</h3>
-              <p>Upload your documents for government processing</p>
-            </div>
-            <div className="page-features">
+        {activeTab === 'submit' && !showDocumentSubmission && (
+          <div className="submit-content">
+            <div className="submit-options">
               <div className="feature-card glass-card clickable" onClick={handleDocumentSubmissionClick}>
                 <h3>Document Submission</h3>
                 <p>Submit your documents online for processing</p>
-              </div>
-              <div className="feature-card glass-card">
-                <h3>Track Status</h3>
-                <p>Monitor the progress of your submitted documents</p>
               </div>
               <div className="feature-card glass-card">
                 <h3>Get Updates</h3>
@@ -584,265 +616,9 @@ const CitizenPage: React.FC = () => {
           <div className="page-actions">
             <button className="action-btn secondary">Check Status</button>
             <button className="action-btn secondary">View History</button>
-            <button className="action-btn secondary" onClick={testSubmission}>
-              Test Submission
-            </button>
           </div>
         )}
 
-        {showDocumentSubmission && (
-          <div className="document-submission-interface">
-            <div className="submission-header">
-              <button className="back-btn" onClick={goBack}>
-                Back
-              </button>
-              <h2 className="submission-title">Document Submission</h2>
-            </div>
-
-            {!showCamera && capturedImages.length === 0 && (
-              <div className="submission-options">
-                {submissionSuccess && (
-                  <div className="success-message glass-card">
-                    <h3>Document Submitted Successfully!</h3>
-                    <p>Your document has been submitted and is being processed by AI in the background.</p>
-                    <div className="ai-processing-info">
-                      <div className="processing-step">
-                        <span className="step-icon">🤖</span>
-                        <span>AI is extracting your name and document information...</span>
-                      </div>
-                      <div className="processing-step">
-                        <span className="step-icon">📋</span>
-                        <span>Document will be assigned to the appropriate department</span>
-                      </div>
-                      <div className="processing-step">
-                        <span className="step-icon">👤</span>
-                        <span>Official will review and process your document</span>
-                      </div>
-                    </div>
-                    <p>You will receive updates on the status as it progresses through the system.</p>
-                    <div className="success-actions">
-                      <button 
-                        className="action-btn primary" 
-                        onClick={() => setSubmissionSuccess(false)}
-                      >
-                        Submit Another Document
-                      </button>
-                      <button 
-                        className="action-btn secondary" 
-                        onClick={() => {
-                          setSubmissionSuccess(false);
-                          setShowDocumentSubmission(false);
-                        }}
-                      >
-                        Back to Dashboard
-                      </button>
-                    </div>
-                  </div>
-                )}
-                
-                {!submissionSuccess && (
-                  <>
-                    <button className="action-btn primary" onClick={startCamera}>
-                      Take Photo
-                    </button>
-                    <button 
-                      className="action-btn secondary" 
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      Upload Documents
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      onChange={handleFileUpload}
-                      style={{ display: 'none' }}
-                    />
-                    <div className="upload-hint">
-                      <p><strong>Tip:</strong> You can upload multiple images for complete document processing (front/back, different pages, etc.)</p>
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
-
-            {showCamera && (
-              <div className="camera-container">
-                <video ref={videoRef} autoPlay playsInline className="camera-video" />
-                <div className="camera-buttons">
-                  <button className="action-btn primary" onClick={capturePhoto}>
-                    Capture
-                  </button>
-                  <button className="action-btn secondary" onClick={stopCamera}>
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {capturedImages.length > 0 && (
-              <div className="document-preview">
-                <h3 className="preview-title">
-                  Document Preview ({capturedImages.length} image{capturedImages.length > 1 ? 's' : ''})
-                </h3>
-                
-                {/* Form Status Indicator */}
-                <div className="form-status" style={{
-                  padding: '10px',
-                  margin: '10px 0',
-                  borderRadius: '8px',
-                  backgroundColor: capturedImages.length > 0 && selectedDocumentType ? '#d4edda' : '#f8d7da',
-                  border: capturedImages.length > 0 && selectedDocumentType ? '1px solid #c3e6cb' : '1px solid #f5c6cb',
-                  color: capturedImages.length > 0 && selectedDocumentType ? '#155724' : '#721c24'
-                }}>
-                  <strong>Form Status:</strong> {
-                    capturedImages.length === 0 ? '❌ No images captured' :
-                    !selectedDocumentType ? '❌ Document type not selected' :
-                    '✅ Ready to submit'
-                  }
-                </div>
-                
-                {/* Document Type Selection */}
-                <div className="document-type-selection">
-                  <label htmlFor="document-type">Document Type: <span style={{color: 'red'}}>*</span></label>
-                  <select 
-                    id="document-type"
-                    value={selectedDocumentType} 
-                    onChange={(e) => setSelectedDocumentType(e.target.value)}
-                    className="document-type-select"
-                    style={{border: !selectedDocumentType ? '2px solid #ff6b6b' : '2px solid #4ecdc4'}}
-                  >
-                    <option value="">Select Document Type</option>
-                    {documentTypes.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                  {!selectedDocumentType && (
-                    <p style={{color: '#ff6b6b', fontSize: '0.9em', margin: '5px 0'}}>
-                      Please select a document type to enable submission
-                    </p>
-                  )}
-                </div>
-
-                {/* Document Description */}
-                <div className="document-description">
-                  <label htmlFor="document-description">Description (Optional):</label>
-                  <textarea
-                    id="document-description"
-                    value={documentDescription}
-                    onChange={(e) => setDocumentDescription(e.target.value)}
-                    placeholder="Add any additional details about your document..."
-                    className="document-description-textarea"
-                    rows={3}
-                  />
-                </div>
-                
-                {capturedImages.length > 1 && (
-                  <div className="image-navigation">
-                    <button className="nav-btn" onClick={prevImage} disabled={capturedImages.length <= 1}>
-                      ← Previous
-                    </button>
-                    <span className="image-counter">
-                      {currentImageIndex + 1} of {capturedImages.length}
-                    </span>
-                    <button className="nav-btn" onClick={nextImage} disabled={capturedImages.length <= 1}>
-                      Next →
-                    </button>
-                  </div>
-                )}
-                
-                <div className="preview-container">
-                  <img 
-                    src={capturedImages[currentImageIndex]} 
-                    alt={`Document Preview ${currentImageIndex + 1}`} 
-                    className="preview-image" 
-                  />
-                  
-                  {capturedImages.length > 1 && (
-                    <div className="image-thumbnails">
-                      {capturedImages.map((img, index) => (
-                        <div 
-                          key={index} 
-                          className={`thumbnail ${index === currentImageIndex ? 'active' : ''}`}
-                          onClick={() => setCurrentImageIndex(index)}
-                        >
-                          <img src={img} alt={`Thumbnail ${index + 1}`} />
-                          <button 
-                            className="remove-thumbnail"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              removeImage(index);
-                            }}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  <div className="preview-actions">
-                    <button className="action-btn secondary" onClick={startCamera}>
-                      Add More Photos
-                    </button>
-                    <button className="action-btn secondary" onClick={clearAllImages}>
-                      Remove All
-                    </button>
-                    <button 
-                      className="action-btn primary" 
-                      onClick={handleDocumentSubmit}
-                      disabled={loading || !selectedDocumentType}
-                      title={!selectedDocumentType ? 'Please select a document type first' : 'Submit your document'}
-                    >
-                      {loading ? 'Submitting...' : 'Submit Document'}
-                    </button>
-                    {!selectedDocumentType && (
-                      <p style={{color: '#ff6b6b', fontSize: '0.9em', margin: '10px 0', textAlign: 'center'}}>
-                        ⚠️ Select a document type above to enable submission
-                      </p>
-                    )}
-                    
-                    {/* Error Display */}
-                    {submissionError && (
-                      <div style={{
-                        margin: '10px 0',
-                        padding: '10px',
-                        backgroundColor: '#f8d7da',
-                        color: '#721c24',
-                        border: '1px solid #f5c6cb',
-                        borderRadius: '8px',
-                        textAlign: 'center'
-                      }}>
-                        <p style={{margin: '0 0 10px 0'}}>❌ {submissionError}</p>
-                        <button 
-                          className="action-btn secondary"
-                          onClick={() => {
-                            setSubmissionError(null);
-                            handleDocumentSubmit();
-                          }}
-                          style={{marginRight: '10px'}}
-                        >
-                          Retry Submission
-                        </button>
-                        <button 
-                          className="action-btn secondary"
-                          onClick={() => setSubmissionError(null)}
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
       </div>
 
       <style dangerouslySetInnerHTML={{
@@ -872,6 +648,283 @@ const CitizenPage: React.FC = () => {
           .processing-step span:last-child {
             color: #374151;
             font-weight: 500;
+          }
+
+          /* Document Submission Form Styles */
+          .submission-form {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+          }
+
+          .form-section {
+            margin-bottom: 2rem;
+          }
+
+          .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+            font-size: 1rem;
+          }
+
+          .upload-area {
+            position: relative;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+            cursor: pointer;
+          }
+
+          .upload-area:hover {
+            border-color: rgba(59, 130, 246, 0.5);
+            background: rgba(59, 130, 246, 0.1);
+          }
+
+          .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+          }
+
+          .upload-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+          }
+
+          .upload-icon {
+            font-size: 3rem;
+            opacity: 0.7;
+          }
+
+          .upload-text {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+          }
+
+          .upload-text strong {
+            color: #333;
+            font-size: 1.1rem;
+          }
+
+          .upload-text span {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+          }
+
+          .uploaded-files {
+            margin-top: 1.5rem;
+          }
+
+          .uploaded-files h4 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+          }
+
+          .files-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+          }
+
+          .file-preview {
+            position: relative;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+          }
+
+          .preview-image {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+          }
+
+          .file-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+          }
+
+          .file-name {
+            color: #333;
+            font-size: 0.85rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+
+          .file-size {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.75rem;
+          }
+
+          .remove-file-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            width: 24px;
+            height: 24px;
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            transition: all 0.2s ease;
+          }
+
+          .remove-file-btn:hover {
+            background: rgba(239, 68, 68, 1);
+            transform: scale(1.1);
+          }
+
+          .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+          }
+
+          .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #ef4444;
+          }
+
+          .error-icon {
+            font-size: 1.2rem;
+          }
+
+          /* Success Message Styles */
+          .success-message {
+            text-align: center;
+            padding: 3rem 2rem;
+            background: rgba(34, 197, 94, 0.1);
+            border: 2px solid rgba(34, 197, 94, 0.3);
+            border-radius: 16px;
+            margin: 2rem 0;
+          }
+
+          .success-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: bounce 1s ease-in-out;
+          }
+
+          @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+              transform: translateY(0);
+            }
+            40% {
+              transform: translateY(-10px);
+            }
+            60% {
+              transform: translateY(-5px);
+            }
+          }
+
+          .success-message h3 {
+            color: #22c55e;
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+          }
+
+          .success-message p {
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+            line-height: 1.6;
+          }
+
+          .card-number-display {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            text-align: center;
+          }
+
+          .card-number-display h4 {
+            color: #333;
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+            font-weight: 600;
+          }
+
+          .card-number {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 700;
+            padding: 1rem 2rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            letter-spacing: 2px;
+            font-family: 'Courier New', monospace;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+          }
+
+          .card-instruction {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.9rem;
+            margin: 0;
+            font-style: italic;
+          }
+
+          .success-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+          }
+
+          /* Responsive Design */
+          @media (max-width: 768px) {
+            .submission-form {
+              padding: 1rem;
+            }
+
+            .files-grid {
+              grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+              gap: 0.75rem;
+            }
+
+            .form-actions {
+              flex-direction: column;
+            }
+
+            .success-actions {
+              flex-direction: column;
+            }
           }
         `
       }} />

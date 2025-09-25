@@ -5,10 +5,23 @@ from datetime import datetime
 import asyncio
 import random
 import time
+import sys
+import os
+
+# Add the services directory to the path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'services'))
+
+# Import the real AI service
+try:
+    from ai_service import ai_service
+    AI_SERVICE_AVAILABLE = True
+except ImportError:
+    print("Warning: AI service not available, using mock service")
+    AI_SERVICE_AVAILABLE = False
 
 router = APIRouter()
 
-# Mock AI service for demonstration
+# Mock AI service for demonstration (fallback)
 class MockAIService:
     @staticmethod
     async def extract_document_info(images: List[str], document_type: str) -> Dict[str, Any]:
@@ -158,18 +171,54 @@ async def extract_document_information(document_id: str, request: Dict[str, Any]
         document_type = request.get("document_type", "national_id")
         images = request.get("images", [])
         
-        # Simulate AI processing
-        extracted_data = await MockAIService.extract_document_info(images, document_type)
-        quality_analysis = await MockAIService.analyze_document_quality(images)
-        
-        return {
-            "success": True,
-            "message": "Document information extracted successfully",
-            "document_id": document_id,
-            "extracted_data": extracted_data,
-            "ai_analysis": quality_analysis,
-            "extracted_at": datetime.now().isoformat()
-        }
+        # Use real AI service if available, otherwise fallback to mock
+        if AI_SERVICE_AVAILABLE:
+            try:
+                # Use the real AI service
+                ai_result = await ai_service.extract_document_information(images, document_type)
+                
+                return {
+                    "success": True,
+                    "message": "Document information extracted successfully using AI",
+                    "document_id": document_id,
+                    "extracted_data": ai_result.get("extracted_data", {}),
+                    "ai_analysis": {
+                        "ai_confidence": ai_result.get("ai_confidence", 0.0),
+                        "ai_quality_score": ai_result.get("ai_quality_score", 0.0),
+                        "ai_fraud_risk": ai_result.get("ai_fraud_risk", 0.0),
+                        "ai_processing_time": ai_result.get("ai_processing_time", "0.0s"),
+                        "ai_recommendations": ai_result.get("ai_recommendations", []),
+                        "ai_issues": ai_result.get("ai_issues", [])
+                    },
+                    "extracted_at": datetime.now().isoformat()
+                }
+            except Exception as ai_error:
+                print(f"AI service error: {ai_error}, falling back to mock service")
+                # Fallback to mock service
+                extracted_data = await MockAIService.extract_document_info(images, document_type)
+                quality_analysis = await MockAIService.analyze_document_quality(images)
+                
+                return {
+                    "success": True,
+                    "message": "Document information extracted successfully (mock service)",
+                    "document_id": document_id,
+                    "extracted_data": extracted_data,
+                    "ai_analysis": quality_analysis,
+                    "extracted_at": datetime.now().isoformat()
+                }
+        else:
+            # Use mock service
+            extracted_data = await MockAIService.extract_document_info(images, document_type)
+            quality_analysis = await MockAIService.analyze_document_quality(images)
+            
+            return {
+                "success": True,
+                "message": "Document information extracted successfully (mock service)",
+                "document_id": document_id,
+                "extracted_data": extracted_data,
+                "ai_analysis": quality_analysis,
+                "extracted_at": datetime.now().isoformat()
+            }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI extraction failed: {str(e)}")
 
