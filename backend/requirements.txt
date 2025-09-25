@@ -1,5 +1,6 @@
 # PublicPulse v2.0 - Render Deployment Requirements
 # Using only pre-compiled wheels to avoid Rust compilation
+# Python 3.11 compatible versions only
 
 fastapi==0.95.2
 uvicorn==0.22.0

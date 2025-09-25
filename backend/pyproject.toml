@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "publicpulse-backend"
+version = "0.1.0"
+description = "PublicPulse Backend API"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "fastapi==0.95.2",
+    "uvicorn==0.22.0",
+    "python-multipart==0.0.6",
+    "pydantic==1.10.12",
+    "python-dotenv==1.0.0"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*"]
