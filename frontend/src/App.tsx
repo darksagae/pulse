@@ -119,22 +119,13 @@ const App: React.FC = () => {
     return (
       <div className="loading-screen">
         <div className="loading-spinner"></div>
-        <p>Connecting to PublicPulse...</p>
+        <p>Loading PublicPulse...</p>
       </div>
     );
   }
 
-  // Show error if backend is disconnected
-  if (backendStatus === 'disconnected') {
-    return (
-      <div className="error-screen">
-        <h2>⚠️ Backend Connection Error</h2>
-        <p>Unable to connect to the PublicPulse backend server.</p>
-        <p>Please make sure the backend is running on port 8000.</p>
-        <button onClick={() => window.location.reload()}>Retry</button>
-      </div>
-    );
-  }
+  // Continue with app even if backend is disconnected (for demo purposes)
+  // The app will work with localStorage for now
 
   return (
     <Router>
