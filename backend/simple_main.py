@@ -28,7 +28,7 @@ app.add_middleware(
 # Health check endpoint
 @app.get("/")
 async def root():
-    return {"message": "PublicPulse API is running", "status": "healthy"}
+    return {"message": "PublicPulse API v2.0 is running", "status": "healthy", "version": "2.0.0"}
 
 @app.get("/health")
 async def health_check():
