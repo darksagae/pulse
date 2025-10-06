@@ -36,36 +36,14 @@ const DepartmentDocumentReview: React.FC<DepartmentDocumentReviewProps> = ({
     setLoading(true);
     setError(null);
     try {
-      // Load documents from localStorage (where CitizenPage stores them)
-      const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      const currentDepartmentDocs = departmentSubmissions[departmentId || ''] || [];
-      
-      console.log('Loading documents for department:', departmentId);
-      console.log('Found documents:', currentDepartmentDocs);
-      
-      // Convert localStorage documents to the format expected by this component
-      const formattedDocs = currentDepartmentDocs.map((doc: any) => ({
-        id: doc.id || doc.cardNumber,
-        citizen_id: doc.citizenId,
-        department_id: doc.department,
-        document_type: doc.documentType,
-        status: doc.status,
-        images: doc.images,
-        description: doc.description,
-        created_at: doc.timestamp,
-        assigned_official_id: doc.assigned_official_id || null,
-        ai_extracted_fields: doc.aiExtractedData,
-        ai_processing_time: doc.aiProcessingTime
-      }));
-      
-      // Filter based on active tab
-      let filteredDocs = formattedDocs;
-      if (activeTab === 'assigned') {
-        // Show only documents assigned to the current official
-        filteredDocs = formattedDocs.filter((doc: any) => doc.assigned_official_id === 'official_001');
+      let response;
+      if (activeTab === 'department') {
+        response = await official.getDepartmentDocuments(departmentId);
+      } else {
+        // For now, use a mock official ID - in real app, get from auth context
+        response = await official.getAssignedDocuments('official_001');
       }
-      
-      setDocuments(filteredDocs);
+      setDocuments(response.documents || []);
     } catch (err) {
       console.error('Error loading documents:', err);
       setError('Failed to load documents. Please try again.');
@@ -124,39 +102,10 @@ const DepartmentDocumentReview: React.FC<DepartmentDocumentReviewProps> = ({
   };
 
   const handleAssignToMe = async (documentId: string) => {
-    try {
-      // Load documents from localStorage
-      const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      const currentDepartmentDocs = departmentSubmissions[departmentId || ''] || [];
-      
-      // Find and update the document
-      const updatedDocs = currentDepartmentDocs.map((doc: any) => {
-        if (doc.id === documentId || doc.cardNumber === documentId) {
-          return {
-            ...doc,
-            assigned_official_id: 'official_001', // In real app, use actual official ID from auth
-            status: 'under_review'
-          };
-        }
-        return doc;
-      });
-      
-      // Save back to localStorage
-      departmentSubmissions[departmentId || ''] = updatedDocs;
-      localStorage.setItem('departmentSubmissions', JSON.stringify(departmentSubmissions));
-      
-      console.log(`Assigned document ${documentId} to official_001`);
-      
-      // Refresh the documents list
-      loadDocuments();
-      
-      // Close the modal and show success message
-      alert('Document assigned to you successfully!');
-      closeDocumentView();
-    } catch (err) {
-      console.error('Error assigning document:', err);
-      setError('Failed to assign document. Please try again.');
-    }
+    // In a real app, this would call an API to assign the document
+    console.log(`Assigning document ${documentId} to current official`);
+    // For now, just refresh the documents
+    loadDocuments();
   };
 
   const handleExtractDocument = async (documentId: string) => {
@@ -164,19 +113,6 @@ const DepartmentDocumentReview: React.FC<DepartmentDocumentReviewProps> = ({
     setExtractionProgress(prev => ({ ...prev, [documentId]: 0 }));
     
     try {
-      // Load documents from localStorage
-      const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      const currentDepartmentDocs = departmentSubmissions[departmentId || ''] || [];
-      
-      // Find the document
-      const document = currentDepartmentDocs.find((doc: any) => 
-        doc.id === documentId || doc.cardNumber === documentId
-      );
-      
-      if (!document) {
-        throw new Error('Document not found');
-      }
-      
       // Simulate AI processing with progress updates
       const progressInterval = setInterval(() => {
         setExtractionProgress(prev => {
@@ -189,61 +125,23 @@ const DepartmentDocumentReview: React.FC<DepartmentDocumentReviewProps> = ({
         });
       }, 200);
 
-      // Wait for animation to complete
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call the AI extraction API
+      const result = await official.extractDocument(documentId);
       
       clearInterval(progressInterval);
       setExtractionProgress(prev => ({ ...prev, [documentId]: 100 }));
       
-      // Use existing AI extracted data or create placeholder
-      const extractedData = document.aiExtractedData || [{
-        personalInfo: {
-          fullName: 'Extracted from document',
-          idNumber: 'Auto-detected',
-          dateOfBirth: 'Auto-detected',
-          gender: 'Auto-detected',
-          address: {
-            village: 'Auto-detected',
-            parish: 'Auto-detected',
-            subCounty: 'Auto-detected',
-            county: 'Auto-detected',
-            district: 'Auto-detected'
-          }
-        },
-        documentInfo: {
-          documentType: document.documentType,
-          expiryDate: 'Auto-detected',
-          issuingAuthority: 'NIRA',
-          documentNumber: 'Auto-detected'
-        }
-      }];
-      
       // Store extracted data
-      setExtractedData(prev => ({ ...prev, [documentId]: extractedData }));
+      setExtractedData(prev => ({ ...prev, [documentId]: result.extracted_data }));
       
-      // Update the document in localStorage
-      const updatedDocs = currentDepartmentDocs.map((doc: any) => {
-        if (doc.id === documentId || doc.cardNumber === documentId) {
-          return {
-            ...doc,
-            status: 'ai_processed',
-            aiExtractedData: extractedData
-          };
-        }
-        return doc;
-      });
-      
-      departmentSubmissions[departmentId || ''] = updatedDocs;
-      localStorage.setItem('departmentSubmissions', JSON.stringify(departmentSubmissions));
-      
-      // Update the document in the UI
+      // Update the document in the list
       setDocuments(prev => prev.map(doc => 
         doc.id === documentId 
-          ? { ...doc, status: 'ai_processed' as any, ai_extracted_fields: extractedData }
+          ? { ...doc, status: 'ai_processed' as any, ai_extracted_fields: result.extracted_data }
           : doc
       ));
       
-      alert('Document information extracted successfully! ✅');
+      alert('Document information extracted successfully!');
       
     } catch (err) {
       console.error('Error extracting document:', err);
