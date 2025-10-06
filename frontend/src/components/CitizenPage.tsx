@@ -216,19 +216,29 @@ const CitizenPage: React.FC = () => {
 
       // Extract data using Gemini AI
       console.log('Starting AI extraction for', processedImageData.length, 'image(s)');
-      const extractionResults = await geminiAIService.extractMultipleDocuments(processedImageData, documentType);
+      let extractionResults = [];
+      let successfulExtractions = [];
       
-      // Log all results for debugging
-      console.log('All extraction results:', extractionResults);
-      
-      // Filter successful extractions
-      const successfulExtractions = extractionResults
-        .filter(result => result.success && result.data)
-        .map(result => result.data!);
-      
-      console.log('Successful extractions:', successfulExtractions.length, 'out of', extractionResults.length);
-      setAiExtractionData(successfulExtractions);
-      console.log('AI extraction completed:', successfulExtractions);
+      try {
+        extractionResults = await geminiAIService.extractMultipleDocuments(processedImageData, documentType);
+        
+        // Log all results for debugging
+        console.log('All extraction results:', extractionResults);
+        
+        // Filter successful extractions
+        successfulExtractions = extractionResults
+          .filter(result => result.success && result.data)
+          .map(result => result.data!);
+        
+        console.log('Successful extractions:', successfulExtractions.length, 'out of', extractionResults.length);
+        setAiExtractionData(successfulExtractions);
+        console.log('AI extraction completed:', successfulExtractions);
+      } catch (aiError) {
+        console.error('AI extraction failed, continuing with submission:', aiError);
+        // Continue with submission even if AI fails
+        extractionResults = [];
+        successfulExtractions = [];
+      }
 
       // Create submission data with card number and AI extraction
       const submissionData = {
@@ -242,30 +252,50 @@ const CitizenPage: React.FC = () => {
         status: 'submitted',
         cardNumber: cardNum,
         aiExtractedData: successfulExtractions,
-        aiProcessingTime: extractionResults.reduce((total, result) => total + result.processingTime, 0)
+        aiProcessingTime: Array.isArray(extractionResults) ? extractionResults.reduce((total, result) => total + result.processingTime, 0) : 0
       };
 
       // Store in localStorage for department access (in real app, this would be API call)
-      const existingSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      if (!existingSubmissions[department]) {
-        existingSubmissions[department] = [];
+      try {
+        const existingSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
+        if (!existingSubmissions[department]) {
+          existingSubmissions[department] = [];
+        }
+        existingSubmissions[department].push(submissionData);
+        localStorage.setItem('departmentSubmissions', JSON.stringify(existingSubmissions));
+        
+        console.log('Stored submission data with AI extraction:', submissionData);
+        console.log('Updated department submissions:', existingSubmissions);
+
+        // Also store in a global submissions array for tracking
+        const globalSubmissions = JSON.parse(localStorage.getItem('globalSubmissions') || '[]');
+        globalSubmissions.push(submissionData);
+        localStorage.setItem('globalSubmissions', JSON.stringify(globalSubmissions));
+
+        console.log(`Images routed to ${department} department with card number ${cardNum} and AI extraction:`, submissionData);
+      } catch (storageError) {
+        console.error('Error storing submission data:', storageError);
+        // Try to clear some space and retry
+        try {
+          // Clear old submissions if localStorage is full
+          localStorage.removeItem('globalSubmissions');
+          const existingSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
+          if (!existingSubmissions[department]) {
+            existingSubmissions[department] = [];
+          }
+          existingSubmissions[department].push(submissionData);
+          localStorage.setItem('departmentSubmissions', JSON.stringify(existingSubmissions));
+          console.log('Stored submission after clearing space');
+        } catch (retryError) {
+          console.error('Failed to store submission even after clearing:', retryError);
+          throw new Error('Storage quota exceeded. Please contact support.');
+        }
       }
-      existingSubmissions[department].push(submissionData);
-      localStorage.setItem('departmentSubmissions', JSON.stringify(existingSubmissions));
       
-      console.log('Stored submission data with AI extraction:', submissionData);
-      console.log('Updated department submissions:', existingSubmissions);
-
-      // Also store in a global submissions array for tracking
-      const globalSubmissions = JSON.parse(localStorage.getItem('globalSubmissions') || '[]');
-      globalSubmissions.push(submissionData);
-      localStorage.setItem('globalSubmissions', JSON.stringify(globalSubmissions));
-
-      console.log(`Images routed to ${department} department with card number ${cardNum} and AI extraction:`, submissionData);
       return true;
     } catch (error) {
       console.error('Error routing images to department:', error);
-      return false;
+      throw error; // Re-throw to be caught by handleDocumentSubmit
     } finally {
       setIsExtracting(false);
     }
@@ -279,6 +309,7 @@ const CitizenPage: React.FC = () => {
       
       if (!selectedDocumentType || !selectedDepartment || uploadedFiles.length === 0) {
         setSubmissionError('Please fill in all required fields and upload at least one image.');
+        setLoading(false);
         return;
       }
 
@@ -286,27 +317,39 @@ const CitizenPage: React.FC = () => {
       const generatedCardNumber = generateCardNumber(selectedDepartment, selectedDocumentType);
       setCardNumber(generatedCardNumber);
 
+      console.log('Starting document submission...');
+      console.log('Document type:', selectedDocumentType);
+      console.log('Department:', selectedDepartment);
+      console.log('Number of files:', uploadedFiles.length);
+
       // Route images to the appropriate department
-      const routingSuccess = await routeImagesToDepartment(
+      await routeImagesToDepartment(
         uploadedFiles, 
         selectedDepartment, 
         selectedDocumentType,
         generatedCardNumber
       );
 
-      if (routingSuccess) {
-        setSubmissionSuccess(true);
-        setUploadedFiles([]);
-        setSelectedDocumentType('');
-        setSelectedDepartment('');
-        setDocumentDescription('');
+      // If we reach here, submission was successful
+      console.log('Document submission successful!');
+      setSubmissionSuccess(true);
+      setUploadedFiles([]);
+      setSelectedDocumentType('');
+      setSelectedDepartment('');
+      setDocumentDescription('');
+      
+      // Load user documents (if applicable)
+      try {
         await loadUserDocuments();
-      } else {
-        throw new Error('Failed to route images to department');
+      } catch (loadError) {
+        console.error('Error loading documents after submission:', loadError);
+        // Don't fail the submission for this
       }
+      
     } catch (error) {
       console.error('Document submission error:', error);
-      setSubmissionError('Failed to submit document. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to submit document. Please try again.';
+      setSubmissionError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -536,9 +579,39 @@ const CitizenPage: React.FC = () => {
 
                 {/* Error Message */}
                 {submissionError && (
-                  <div className="error-message">
+                  <div className="error-message" style={{
+                    padding: '15px',
+                    marginTop: '15px',
+                    background: 'rgba(220, 53, 69, 0.1)',
+                    border: '2px solid #dc3545',
+                    borderRadius: '8px',
+                    color: '#dc3545',
+                    fontSize: '14px',
+                    fontWeight: 'bold'
+                  }}>
                     <span className="error-icon">⚠️</span>
                     {submissionError}
+                    {submissionError.includes('Storage quota') && (
+                      <div style={{ marginTop: '10px', fontSize: '12px', fontWeight: 'normal' }}>
+                        <button 
+                          onClick={() => {
+                            localStorage.clear();
+                            setSubmissionError(null);
+                            alert('Storage cleared. Please try submitting again.');
+                          }}
+                          style={{
+                            padding: '5px 10px',
+                            background: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Clear Storage & Retry
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
