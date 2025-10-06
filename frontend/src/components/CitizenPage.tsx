@@ -4,6 +4,8 @@ import citizenIcon from '../assets/images/citizen.png';
 import { DocumentData, NotificationData } from '../lib/backend-service';
 import { citizen } from '../lib/api';
 import { geminiAIService, ExtractedData } from '../lib/gemini-ai-service';
+import { imageMerger } from '../lib/image-merger';
+import { imageOptimizer } from '../lib/image-optimizer';
 import './PageStyles.css';
 import '../styles/glassmorphism.css';
 
@@ -23,6 +25,7 @@ const CitizenPage: React.FC = () => {
   const [cardNumber, setCardNumber] = useState<string>('');
   const [aiExtractionData, setAiExtractionData] = useState<ExtractedData[]>([]);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
@@ -162,9 +165,58 @@ const CitizenPage: React.FC = () => {
         }))
       );
 
+      // Merge images if there are multiple (e.g., front and back of ID card)
+      let processedImageData: string[];
+      
+      if (imageData.length >= 2) {
+        console.log('Merging', imageData.length, 'images into a single image...');
+        try {
+          const mergedImage = await imageMerger.mergeImages(imageData, {
+            layout: 'horizontal', // Side by side
+            maxWidth: 8000,      // No artificial limit - optimizer will handle size
+            maxHeight: 8000,
+            quality: 0.95,
+            spacing: 30
+          });
+          processedImageData = [mergedImage];
+          console.log('Successfully merged images into one');
+        } catch (mergeError) {
+          console.error('Error merging images, using original images:', mergeError);
+          processedImageData = imageData;
+        }
+      } else {
+        processedImageData = imageData;
+      }
+
+      // Optimize images for Gemini API (handles large images automatically)
+      console.log('Optimizing images for AI processing...');
+      setIsOptimizing(true);
+      try {
+        const optimizedImages = await imageOptimizer.optimizeBatch(
+          processedImageData,
+          {
+            maxFileSizeMB: 3.5,      // Gemini limit is ~4MB, stay under with buffer
+            maxWidth: 4096,          // Gemini max dimension
+            maxHeight: 4096,
+            initialQuality: 0.95,
+            minQuality: 0.70
+          },
+          (current, total) => {
+            console.log(`Optimizing image ${current}/${total}...`);
+          }
+        );
+        processedImageData = optimizedImages;
+        console.log('Image optimization completed successfully');
+      } catch (optimizeError) {
+        console.error('Error optimizing images, proceeding with unoptimized:', optimizeError);
+        // Continue with unoptimized images
+      } finally {
+        setIsOptimizing(false);
+      }
+
       // Extract data using Gemini AI
-      console.log('Starting AI extraction for', images.length, 'images');
-      const extractionResults = await geminiAIService.extractMultipleDocuments(imageData, documentType);
+      console.log('Starting AI extraction for', processedImageData.length, 'image(s)');
+      const extractionResults = await geminiAIService.extractMultipleDocuments(processedImageData, documentType);
       
       // Log all results for debugging
       console.log('All extraction results:', extractionResults);
@@ -183,7 +235,8 @@ const CitizenPage: React.FC = () => {
         id: cardNum,
         documentType,
         department,
-        images: imageData,
+        images: processedImageData, // Use merged image(s) instead of original
+        originalImageCount: imageData.length, // Keep track of how many images were merged
         timestamp: new Date().toISOString(),
         citizenId: 'citizen_001', // This would come from user authentication
         status: 'submitted',
@@ -438,6 +491,20 @@ const CitizenPage: React.FC = () => {
                     </label>
                   </div>
                   
+                  {/* Info message for multiple images */}
+                  {uploadedFiles.length >= 2 && (
+                    <div style={{ 
+                      marginTop: '10px', 
+                      padding: '10px', 
+                      background: 'rgba(59, 130, 246, 0.1)', 
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      color: '#3b82f6'
+                    }}>
+                      ℹ️ Multiple images will be automatically combined into one for better processing
+                    </div>
+                  )}
+                  
                   {/* Uploaded Files Preview */}
                   {uploadedFiles.length > 0 && (
                     <div className="uploaded-files">
@@ -486,9 +553,10 @@ const CitizenPage: React.FC = () => {
                   <button 
                     className="action-btn primary" 
                     onClick={handleDocumentSubmit}
-                    disabled={loading || isExtracting || !selectedDocumentType || !selectedDepartment || uploadedFiles.length === 0}
+                    disabled={loading || isExtracting || isOptimizing || !selectedDocumentType || !selectedDepartment || uploadedFiles.length === 0}
                   >
-                    {isExtracting ? '🤖 AI Extracting Data...' : 
+                    {isOptimizing ? '⚙️ Optimizing Images...' :
+                     isExtracting ? '🤖 AI Extracting Data...' : 
                      loading ? 'Submitting...' : 'Submit Document'}
                   </button>
                 </div>

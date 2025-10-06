@@ -131,6 +131,8 @@ class GeminiAIService {
   private generateNIRAPrompt(): string {
     return `You are a specialized AI trained specifically for NIRA (National Identification and Registration Authority) card extraction in Uganda. You are analyzing a NIRA card which has TWO SIDES: FRONT and BACK.
 
+IMPORTANT: The image you are viewing may contain BOTH SIDES of the card merged side-by-side in a single image, OR it may be two separate images. Look at the ENTIRE image carefully from left to right to find all information.
+
 CRITICAL: You MUST extract ALL fields. Do not leave any field empty. If you cannot find a field, look more carefully at the entire document.
 
 NIRA CARD STRUCTURE:
@@ -166,12 +168,15 @@ MANDATORY EXTRACTION RULES:
 
 SEARCH INSTRUCTIONS:
 - Look in headers, footers, margins, and all text areas
-- Check both sides of the document thoroughly
+- Check both sides of the document thoroughly - they may be side-by-side in the same image
+- Scan the ENTIRE image from LEFT to RIGHT to find both the front and back information
 - Look for numbers that might be NIN or card numbers
 - Look for dates in any format and convert to DD.MM.YYYY
-- Look for address components in any order
+- Look for address components in any order (these are usually on the back/right side)
 - If you see "M" or "F", convert to "Male" or "Female"
 - If you see "UGA", that's the nationality
+- Personal info (name, NIN, dates) is usually on the front/left side
+- Address info (village, parish, etc.) is usually on the back/right side
 
 Return ONLY a valid JSON object in this exact format:
 {
@@ -230,10 +235,12 @@ IMPORTANT: If you cannot find a specific field after thorough searching, use "No
 
 DOCUMENT TYPE: ${documentType}
 
+IMPORTANT: The image may contain multiple sides of the document merged side-by-side (e.g., front and back). Scan the ENTIRE image from LEFT to RIGHT to find all information.
+
 CRITICAL INSTRUCTIONS:
-1. Examine the ENTIRE document image carefully
+1. Examine the ENTIRE document image carefully from left to right
 2. Look for information in ALL sections, headers, footers, and margins
-3. Extract information from BOTH front and back if visible
+3. Extract information from BOTH front and back if visible (they may be merged in one image)
 4. Pay attention to small print, stamps, and official markings
 5. If information appears in multiple places, use the most complete/clear version
 6. IMPORTANT: Address components (village, parish, sub-county, county, district) may be on different documents
