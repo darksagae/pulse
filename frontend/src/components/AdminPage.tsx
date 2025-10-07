@@ -56,22 +56,13 @@ const AdminPage: React.FC = () => {
   // Load department approvals from localStorage
   const loadDepartmentApprovals = () => {
     try {
-      const departmentAdminData = JSON.parse(localStorage.getItem('departmentAdminData') || '{}');
-      const allApprovals: any[] = [];
-      
-      // Flatten all department approvals into one array
-      Object.keys(departmentAdminData).forEach(department => {
-        const deptApprovals = departmentAdminData[department] || [];
-        allApprovals.push(...deptApprovals);
-      });
-      
-      // Sort by timestamp (newest first)
-      allApprovals.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      
+      const storedApprovals = JSON.parse(localStorage.getItem('departmentAdminData') || '{}');
+      const allApprovals = Object.values(storedApprovals).flat();
+      console.log('Loading department approvals from localStorage:', allApprovals);
       setDepartmentApprovals(allApprovals);
-      console.log('Loaded department approvals:', allApprovals);
     } catch (error) {
       console.error('Error loading department approvals:', error);
+      setDepartmentApprovals([]);
     }
   };
 
@@ -190,6 +181,9 @@ const AdminPage: React.FC = () => {
     { name: 'Health', documents: 0, completed: 0, pending: 0, efficiency: 0 }
   ];
 
+  const handleAIConfigChange = (key: string, value: any) => {
+    setAiConfig(prev => ({ ...prev, [key]: value }));
+  };
 
 
   return (
@@ -562,29 +556,50 @@ const AdminPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="ai-controls">
+            <div className="ai-config-section">
               <h3>AI Configuration</h3>
-              <div className="control-group">
-                <label>Confidence Threshold:</label>
-                <input type="range" min="0" max="1" step="0.1" defaultValue="0.8" />
-                <span>80%</span>
+              <div className="config-item">
+                <label>Confidence Threshold</label>
+                <input 
+                  type="range" 
+                  min="0.5" 
+                  max="0.95" 
+                  step="0.05" 
+                  value={aiConfig.confidence_threshold} 
+                  onChange={(e) => handleAIConfigChange('confidence_threshold', parseFloat(e.target.value))} 
+                />
+                <span>{Math.round(aiConfig.confidence_threshold * 100)}%</span>
               </div>
-              <div className="control-group">
-                <label>Fraud Risk Threshold:</label>
-                <input type="range" min="0" max="1" step="0.1" defaultValue="0.3" />
-                <span>30%</span>
+              <div className="config-item">
+                <label>AI Processing Enabled</label>
+                <input 
+                  type="checkbox" 
+                  checked={aiConfig.processing_enabled} 
+                  onChange={(e) => handleAIConfigChange('processing_enabled', e.target.checked)} 
+                />
               </div>
-              <div className="control-group">
-                <label>Quality Threshold:</label>
-                <input type="range" min="0" max="1" step="0.1" defaultValue="0.6" />
-                <span>60%</span>
+              <div className="config-item">
+                <label>Auto-Classification</label>
+                <input 
+                  type="checkbox" 
+                  checked={aiConfig.auto_classification} 
+                  onChange={(e) => handleAIConfigChange('auto_classification', e.target.checked)} 
+                />
               </div>
-            </div>
-
-            <div className="ai-actions">
-              <button className="glass-btn glass-btn-primary">Save Configuration</button>
-              <button className="glass-btn glass-btn-secondary">Reset to Defaults</button>
-              <button className="glass-btn glass-btn-warning">Retrain Models</button>
+              <div className="config-item">
+                <label>Fraud Detection</label>
+                <input 
+                  type="checkbox" 
+                  checked={aiConfig.fraud_detection} 
+                  onChange={(e) => handleAIConfigChange('fraud_detection', e.target.checked)} 
+                />
+              </div>
+              <button 
+                className="glass-btn glass-btn-primary"
+                onClick={() => alert('AI configuration updated!')}
+              >
+                Update Configuration
+              </button>
             </div>
           </div>
         )}
@@ -839,9 +854,20 @@ const AdminPage: React.FC = () => {
                       </button>
                       <button 
                         className="glass-btn glass-btn-secondary"
-                        onClick={() => {
-                          // Send notification to citizen
-                          console.log('Notify citizen:', approval.citizenId);
+                        onClick={async () => {
+                          try {
+                            await createNotification({
+                              user_id: approval.citizenId,
+                              document_id: approval.id,
+                              title: 'A message from the admin',
+                              message: `The administrator has reviewed your document submission #${approval.cardNumber}.`,
+                              type: 'info'
+                            });
+                            alert('Notification sent to citizen!');
+                          } catch (error) {
+                            console.error('Failed to send notification:', error);
+                            alert('Failed to send notification. Please try again.');
+                          }
                         }}
                       >
                         Notify Citizen
