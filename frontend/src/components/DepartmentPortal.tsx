@@ -9,36 +9,6 @@ interface DepartmentPortalProps {
   user: User;
 }
 
-interface ExtractedData {
-  personalInfo: {
-    fullName: string;
-    idNumber: string;
-    dateOfBirth: string;
-    gender: string;
-    address: {
-      village: string;
-      parish: string;
-      subCounty: string;
-      county: string;
-      district: string;
-    };
-    email?: string;
-  };
-  documentInfo: {
-    documentType: string;
-    expiryDate: string;
-    issuingAuthority: string;
-    documentNumber: string;
-  };
-  confidence: {
-    overall: number;
-    fields: Record<string, number>;
-  };
-  aiRecommendations: string[];
-  extractedText: string;
-  processingTime: number;
-}
-
 interface RoutedDocument {
   id: string;
   documentType: string;
@@ -49,7 +19,7 @@ interface RoutedDocument {
   status: string;
   cardNumber: string;
   description?: string;
-  aiExtractedData?: ExtractedData[];
+  aiExtractedData?: any[];
   aiProcessingTime?: number;
   originalImageCount?: number;
 }
