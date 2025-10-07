@@ -155,7 +155,8 @@ const CitizenPage: React.FC = () => {
   const routeImagesToDepartment = async (images: File[], department: string, documentType: string, cardNum: string) => {
     try {
       setIsExtracting(true);
-      
+
+      console.log('Step 1: Converting images to base64...');
       const imageData = await Promise.all(
         images.map(file => new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -165,22 +166,23 @@ const CitizenPage: React.FC = () => {
         }))
       );
 
+      console.log('Step 2: Merging images...');
       let processedImageData: string[];
-      
       if (imageData.length >= 2) {
         processedImageData = [await imageMerger.mergeImages(imageData)];
       } else {
         processedImageData = imageData;
       }
 
+      console.log('Step 3: Optimizing images...');
       const optimizedImages = await imageOptimizer.optimizeBatch(processedImageData);
 
+      console.log('Step 4: Extracting data with AI...');
       const extractionResults = await geminiAIService.extractMultipleDocuments(optimizedImages, documentType);
-      
       const successfulExtractions = extractionResults
         .filter(result => result.success && result.data)
         .map(result => result.data!);
-      
+
       const submissionData = {
         cardNumber: cardNum,
         documentType,
@@ -191,15 +193,24 @@ const CitizenPage: React.FC = () => {
         citizenId: 'citizen_001',
         status: 'submitted',
         aiExtractedData: successfulExtractions,
-        aiProcessingTime: extractionResults.reduce((total, result) => total + result.processingTime, 0)
+        aiProcessingTime: extractionResults.reduce((total, result) => total + (result.processingTime || 0), 0)
       };
       
+      console.log('Step 5: Saving to IndexedDB...');
       await db.documents.add(submissionData);
-      
+      console.log('✅ Successfully saved to IndexedDB.');
+
       return true;
-    } catch (error) {
-      console.error('Error in routeImagesToDepartment:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('❌ A critical error occurred during document submission:', error);
+      
+      if (error.name === 'QuotaExceededError') {
+        throw new Error('IndexedDB quota exceeded. The database is full.');
+      }
+      
+      // Forward a generic but clear error message
+      throw new Error('An unexpected error occurred while processing the document.');
+      
     } finally {
       setIsExtracting(false);
     }
