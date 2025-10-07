@@ -156,7 +156,6 @@ const CitizenPage: React.FC = () => {
     try {
       setIsExtracting(true);
       
-      // Convert files to base64 for transmission
       const imageData = await Promise.all(
         images.map(file => new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -166,138 +165,41 @@ const CitizenPage: React.FC = () => {
         }))
       );
 
-      // Merge images if there are multiple (e.g., front and back of ID card)
       let processedImageData: string[];
       
       if (imageData.length >= 2) {
-        console.log('🔄 STEP 1: Merging', imageData.length, 'images into a single image...');
-        console.log('  - Original images count:', imageData.length);
-        console.log('  - Original image sizes:', imageData.map((img, i) => `Image ${i+1}: ${(img.length / 1024 / 1024).toFixed(2)}MB`));
-        try {
-          const mergedImage = await imageMerger.mergeImages(imageData, {
-            layout: 'horizontal', // Side by side
-            maxWidth: 8000,      // No artificial limit - optimizer will handle size
-            maxHeight: 8000,
-            quality: 0.95,
-            spacing: 30
-          });
-          processedImageData = [mergedImage];
-          console.log('✅ Successfully merged images into one');
-          console.log('  - Merged image size:', (mergedImage.length / 1024 / 1024).toFixed(2), 'MB');
-        } catch (mergeError) {
-          console.error('❌ Error merging images, using original images:', mergeError);
-          processedImageData = imageData;
-        }
+        processedImageData = [await imageMerger.mergeImages(imageData)];
       } else {
-        console.log('📸 Single image upload, no merging needed');
         processedImageData = imageData;
       }
 
-      // Optimize images for Gemini API (handles large images automatically)
-      console.log('⚙️ STEP 2: Optimizing images for AI processing...');
-      console.log('  - Images to optimize:', processedImageData.length);
-      setIsOptimizing(true);
-      try {
-        const optimizedImages = await imageOptimizer.optimizeBatch(
-          processedImageData,
-          {
-            maxFileSizeMB: 3.5,      // Gemini limit is ~4MB, stay under with buffer
-            maxWidth: 4096,          // Gemini max dimension
-            maxHeight: 4096,
-            initialQuality: 0.95,
-            minQuality: 0.70
-          },
-          (current, total) => {
-            console.log(`  - Optimizing image ${current}/${total}...`);
-          }
-        );
-        processedImageData = optimizedImages;
-        console.log('✅ Image optimization completed');
-        console.log('  - Optimized images count:', optimizedImages.length);
-        console.log('  - Optimized sizes:', optimizedImages.map((img, i) => `Image ${i+1}: ${(img.length / 1024 / 1024).toFixed(2)}MB`));
-      } catch (optimizeError) {
-        console.error('❌ Error optimizing images, proceeding with unoptimized:', optimizeError);
-        // Continue with unoptimized images
-      } finally {
-        setIsOptimizing(false);
-      }
+      const optimizedImages = await imageOptimizer.optimizeBatch(processedImageData);
 
-      // Extract data using Gemini AI
-      console.log('🤖 STEP 3: Starting AI extraction...');
-      console.log('  - Images to process:', processedImageData.length);
-      console.log('  - Document type:', documentType);
-      console.log('  - Image data being sent to AI:', processedImageData.length > 0 ? 'YES ✅' : 'NO ❌');
+      const extractionResults = await geminiAIService.extractMultipleDocuments(optimizedImages, documentType);
       
-      let extractionResults: any[] = [];
-      let successfulExtractions: ExtractedData[] = [];
-      
-      try {
-        extractionResults = await geminiAIService.extractMultipleDocuments(processedImageData, documentType);
-        
-        console.log('📊 AI Extraction Results:');
-        console.log('  - Total results:', extractionResults.length);
-        console.log('  - Results detail:', extractionResults);
-        
-        // Filter successful extractions
-        successfulExtractions = extractionResults
-          .filter(result => result.success && result.data)
-          .map(result => result.data!);
-        
-        console.log('✅ Successful extractions:', successfulExtractions.length, 'out of', extractionResults.length);
-        
-        if (successfulExtractions.length > 0) {
-          console.log('📄 Extracted Data Preview:');
-          console.log('  - Name:', successfulExtractions[0].personalInfo.fullName);
-          console.log('  - ID Number:', successfulExtractions[0].personalInfo.idNumber);
-          console.log('  - Confidence:', successfulExtractions[0].confidence.overall + '%');
-          console.log('  - Village:', successfulExtractions[0].personalInfo.address.village);
-          console.log('  - District:', successfulExtractions[0].personalInfo.address.district);
-        } else {
-          console.warn('⚠️ NO SUCCESSFUL EXTRACTIONS! Check Gemini API response above.');
-        }
-        
-        setAiExtractionData(successfulExtractions);
-      } catch (aiError) {
-        console.error('❌ AI extraction failed completely:', aiError);
-        console.error('  - Error details:', aiError);
-        // Continue with submission even if AI fails
-        extractionResults = [];
-        successfulExtractions = [];
-      }
-
-      // Create submission data with card number and AI extraction
-      console.log('💾 STEP 4: Creating submission data...');
-      console.log('  - Card Number:', cardNum);
-      console.log('  - AI Extractions to save:', successfulExtractions.length);
+      const successfulExtractions = extractionResults
+        .filter(result => result.success && result.data)
+        .map(result => result.data!);
       
       const submissionData = {
         cardNumber: cardNum,
         documentType,
         department,
-        images: processedImageData, // Use merged image(s) instead of original
-        originalImageCount: imageData.length, // Keep track of how many images were merged
+        images: optimizedImages,
+        originalImageCount: imageData.length,
         timestamp: new Date().toISOString(),
-        citizenId: 'citizen_001', // This would come from user authentication
+        citizenId: 'citizen_001',
         status: 'submitted',
         aiExtractedData: successfulExtractions,
-        aiProcessingTime: Array.isArray(extractionResults) ? extractionResults.reduce((total, result) => total + result.processingTime, 0) : 0
+        aiProcessingTime: extractionResults.reduce((total, result) => total + result.processingTime, 0)
       };
       
-      console.log('📦 Submission Data Created:', submissionData);
-
-      // Store in IndexedDB
-      try {
-        await db.documents.add(submissionData);
-        console.log('✅ Stored submission data in IndexedDB successfully.');
-      } catch (error) {
-        console.error('❌ Failed to store submission in IndexedDB:', error);
-        throw new Error('Failed to save document to the local database.');
-      }
+      await db.documents.add(submissionData);
       
       return true;
     } catch (error) {
-      console.error('Error routing images to department:', error);
-      throw error; // Re-throw to be caught by handleDocumentSubmit
+      console.error('Error in routeImagesToDepartment:', error);
+      throw error;
     } finally {
       setIsExtracting(false);
     }
