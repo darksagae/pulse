@@ -861,7 +861,8 @@ const AdminPage: React.FC = () => {
                               document_id: approval.id,
                               title: 'A message from the admin',
                               message: `The administrator has reviewed your document submission #${approval.cardNumber}.`,
-                              type: 'info'
+                              type: 'info',
+                              read: false
                             });
                             alert('Notification sent to citizen!');
                           } catch (error) {
