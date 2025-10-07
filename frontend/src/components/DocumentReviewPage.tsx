@@ -3,78 +3,72 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ugFlag from '../assets/images/ug.png';
 import officialImg from '../assets/images/admin.png';
 import { ExtractedData } from '../lib/gemini-ai-service';
-import { db, DocumentSubmission as RoutedDocument } from '../lib/db';
+import { db, DocumentSubmission } from '../lib/db';
 import './PageStyles.css';
 
 const DocumentReviewPage: React.FC = () => {
   const { cardNumber } = useParams<{ cardNumber: string }>();
   const navigate = useNavigate();
-  const [document, setDocument] = useState<RoutedDocument | null>(null);
+  const [document, setDocument] = useState<DocumentSubmission | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
-    const decodedCardNumber = decodeURIComponent(cardNumber || '');
-    console.log('DocumentReviewPage loaded with cardNumber:', cardNumber);
-    console.log('Decoded cardNumber:', decodedCardNumber);
+    const loadDocument = async () => {
+      try {
+        setLoading(true);
+        const decodedCardNumber = decodeURIComponent(cardNumber || '');
+        
+        const foundDocument = await db.documents.where('cardNumber').equals(decodedCardNumber).first();
+        
+        console.log('🔍 LOADING DOCUMENT FROM INDEXEDDB:');
+        console.log('  - Searched for:', decodedCardNumber);
+        console.log('  - Found:', foundDocument);
+        
+        setDocument(foundDocument || null);
+      } catch (error) {
+        console.error('💥 Error loading document from IndexedDB:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     loadDocument();
   }, [cardNumber]);
 
-  const loadDocument = async () => {
-    try {
-      setLoading(true);
-      const decodedCardNumber = decodeURIComponent(cardNumber || '');
-      
-      const foundDocument = await db.documents.where('cardNumber').equals(decodedCardNumber).first();
-      
-      console.log('🔍 LOADING DOCUMENT FROM INDEXEDDB:');
-      console.log('  - Searched for:', decodedCardNumber);
-      console.log('  - Found:', foundDocument);
-      
-      setDocument(foundDocument || null);
-    } catch (error) {
-      console.error('💥 Error loading document from IndexedDB:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const updateDocumentStatus = async (newStatus: string) => {
-    if (!document) return;
+    if (!document || !document.id) return;
 
     try {
-      if (document?.id) {
-        await db.documents.update(document.id, { status: newStatus });
-        
-        const approvalData = {
-          approvalId: `approval_${Date.now()}`,
-          cardNumber: document.cardNumber,
-          documentType: document.documentType,
-          department: document.department,
-          citizenId: document.citizenId,
-          status: newStatus,
-          timestamp: new Date().toISOString(),
-          officialAction: newStatus,
-          images: document.images,
-          feedback: generateApprovalFeedback(document, newStatus)
-        };
-        await db.approvals.add(approvalData);
+      await db.documents.update(document.id, { status: newStatus });
+      
+      const approvalData = {
+        approvalId: `approval_${Date.now()}`,
+        cardNumber: document.cardNumber,
+        documentType: document.documentType,
+        department: document.department,
+        citizenId: document.citizenId,
+        status: newStatus,
+        timestamp: new Date().toISOString(),
+        officialAction: newStatus,
+        images: document.images,
+        feedback: generateApprovalFeedback(document, newStatus)
+      };
+      await db.approvals.add(approvalData);
 
-        setDocument(prev => prev ? { ...prev, status: newStatus } : null);
-        console.log('✅ Document status updated and approval sent to admin.');
-      }
+      setDocument(prev => prev ? { ...prev, status: newStatus } : null);
+      console.log('✅ Document status updated and approval sent to admin.');
     } catch (error) {
       console.error('Error updating document status:', error);
     }
   };
 
   // Send approval result to admin portal
-  const sendApprovalToAdmin = (document: RoutedDocument, status: string) => {
+  const sendApprovalToAdmin = (document: DocumentSubmission, status: string) => {
     // This function is now handled by updateDocumentStatus
   };
 
   // Generate logical feedback based on approval decision
-  const generateApprovalFeedback = (document: RoutedDocument, status: string) => {
+  const generateApprovalFeedback = (document: DocumentSubmission, status: string) => {
     const feedback = {
         approved: {
           message: `Document ${document.documentType.replace('_', ' ')} has been approved by ${document.department.toUpperCase()} department`,
