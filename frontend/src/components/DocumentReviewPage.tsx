@@ -57,11 +57,25 @@ const DocumentReviewPage: React.FC = () => {
       
       console.log('Final found document:', foundDocument);
       
-      // Debug: Check if AI data exists
+      // Debug: Check AI data in detail
       if (foundDocument) {
-        console.log('Document has aiExtractedData:', !!foundDocument.aiExtractedData);
-        console.log('aiExtractedData length:', foundDocument.aiExtractedData?.length);
-        console.log('aiExtractedData content:', foundDocument.aiExtractedData);
+        console.log('📄 Document Retrieved for Review:');
+        console.log('  - Card Number:', foundDocument.cardNumber);
+        console.log('  - Department:', foundDocument.department);
+        console.log('  - Has aiExtractedData:', !!foundDocument.aiExtractedData);
+        console.log('  - aiExtractedData type:', typeof foundDocument.aiExtractedData);
+        console.log('  - aiExtractedData length:', foundDocument.aiExtractedData?.length);
+        console.log('  - Full aiExtractedData:', foundDocument.aiExtractedData);
+        
+        if (foundDocument.aiExtractedData && foundDocument.aiExtractedData.length > 0) {
+          console.log('  ✅ AI Data Available:', {
+            name: foundDocument.aiExtractedData[0].personalInfo.fullName,
+            id: foundDocument.aiExtractedData[0].personalInfo.idNumber,
+            confidence: foundDocument.aiExtractedData[0].confidence.overall + '%'
+          });
+        } else {
+          console.log('  ❌ No AI Data Available');
+        }
       }
       
       setDocument(foundDocument);
@@ -239,7 +253,7 @@ const DocumentReviewPage: React.FC = () => {
         <div className="document-review-container">
               
               {/* AI Extracted Data */}
-              {document.aiExtractedData && document.aiExtractedData.length > 0 ? (
+              {document.aiExtractedData && document.aiExtractedData.length > 0 && (
                 <div className="ai-extracted-data-card">
                   <h3 style={{ fontWeight: '900', fontSize: '1rem', marginBottom: '0.5rem' }}>🤖 AI EXTRACTED INFORMATION</h3>
                   <div className="ai-processing-info">
@@ -366,22 +380,6 @@ const DocumentReviewPage: React.FC = () => {
                   </div>
                   ))}
                   </div>
-              ) : (
-                <div className="ai-extracted-data-card" style={{
-                  padding: '20px',
-                  textAlign: 'center',
-                  background: 'rgba(255, 193, 7, 0.1)',
-                  border: '2px solid #ffc107',
-                  borderRadius: '10px'
-                }}>
-                  <h3 style={{ color: '#f57c00', marginBottom: '10px' }}>⚠️ AI Data Not Available</h3>
-                  <p style={{ color: '#666', fontSize: '14px' }}>
-                    This document was submitted before AI extraction was enabled, or the AI extraction failed during submission.
-                  </p>
-                  <p style={{ color: '#666', fontSize: '14px', marginTop: '10px' }}>
-                    Please review the document images manually.
-                  </p>
-                </div>
               )}
               
           {/* Document Images */}

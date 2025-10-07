@@ -255,6 +255,17 @@ const CitizenPage: React.FC = () => {
         aiProcessingTime: Array.isArray(extractionResults) ? extractionResults.reduce((total, result) => total + result.processingTime, 0) : 0
       };
 
+      // Debug: Log AI data being stored
+      console.log('📦 Storing document with AI data:');
+      console.log('  - Card Number:', cardNum);
+      console.log('  - Department:', department);
+      console.log('  - AI Extracted Data:', successfulExtractions.length, 'items');
+      console.log('  - AI Data Preview:', successfulExtractions[0] ? {
+        name: successfulExtractions[0].personalInfo.fullName,
+        id: successfulExtractions[0].personalInfo.idNumber,
+        confidence: successfulExtractions[0].confidence.overall
+      } : 'No AI data');
+
       // Store in localStorage for department access (in real app, this would be API call)
       try {
         const existingSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
