@@ -42,7 +42,7 @@ class GeminiAIService {
 
   constructor() {
     this.apiKey = 'AIzaSyBJyX-IGZofqB--mJ-eIsl8j9pt0x5dYHY';
-    this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
   }
 
   async extractDocumentData(imageBase64: string, documentType: string): Promise<GeminiResponse> {
