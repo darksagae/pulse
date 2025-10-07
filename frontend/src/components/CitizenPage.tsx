@@ -311,7 +311,7 @@ const CitizenPage: React.FC = () => {
             let allDocs: any[] = Object.values(submissions).flat();
             allDocs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-            const docsToRemove = Math.min(allDocs.length, 2);
+            const docsToRemove = Math.min(allDocs.length, 5); // Increased to 5
             if (docsToRemove === 0) {
                  throw new Error('Storage is full and there are no old documents to remove.');
             }
