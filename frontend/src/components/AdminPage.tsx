@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ugFlag from '../assets/images/ug.png';
 import adminIcon from '../assets/images/admin.png';
 import { 
@@ -16,6 +17,7 @@ import './Admin/Admin.css';
 import '../styles/glassmorphism.css';
 
 const AdminPage: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [documents, setDocuments] = useState<DocumentData[]>([]);
   const [loading, setLoading] = useState(false);
@@ -828,8 +830,9 @@ const AdminPage: React.FC = () => {
                       <button 
                         className="glass-btn glass-btn-primary"
                         onClick={() => {
-                          // View document details
-                          console.log('View document:', approval.cardNumber);
+                          // Navigate to document review page
+                          console.log('Navigating to view document:', approval.cardNumber);
+                          navigate(`/document-review/${encodeURIComponent(approval.cardNumber)}`);
                         }}
                       >
                         View Document
