@@ -289,7 +289,6 @@ const CitizenPage: React.FC = () => {
       console.log('  - Full submission data:', submissionData);
 
       // Store in localStorage for department access (in real app, this would be API call)
-      console.log('💾 STEP 5: Storing to localStorage...');
       try {
         const existingSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
         if (!existingSubmissions[department]) {
@@ -298,39 +297,49 @@ const CitizenPage: React.FC = () => {
         existingSubmissions[department].push(submissionData);
         localStorage.setItem('departmentSubmissions', JSON.stringify(existingSubmissions));
         
-        console.log('✅ Stored submission data successfully');
-        console.log('  - Department:', department);
-        console.log('  - Card Number:', cardNum);
-        console.log('  - AI Data Included:', !!submissionData.aiExtractedData && submissionData.aiExtractedData.length > 0);
-        
-        // Verify it was saved correctly
-        const verifyData = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-        const savedDoc = verifyData[department]?.find((d: any) => d.cardNumber === cardNum);
-        console.log('🔍 Verification - Document saved with AI data:', !!savedDoc?.aiExtractedData);
-        console.log('  - Saved AI data length:', savedDoc?.aiExtractedData?.length);
-
-        // Also store in a global submissions array for tracking
         const globalSubmissions = JSON.parse(localStorage.getItem('globalSubmissions') || '[]');
         globalSubmissions.push(submissionData);
         localStorage.setItem('globalSubmissions', JSON.stringify(globalSubmissions));
 
-        console.log(`Images routed to ${department} department with card number ${cardNum} and AI extraction:`, submissionData);
-      } catch (storageError) {
-        console.error('Error storing submission data:', storageError);
-        // Try to clear some space and retry
-        try {
-          // Clear old submissions if localStorage is full
-          localStorage.removeItem('globalSubmissions');
-          const existingSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-          if (!existingSubmissions[department]) {
-            existingSubmissions[department] = [];
-          }
-          existingSubmissions[department].push(submissionData);
-          localStorage.setItem('departmentSubmissions', JSON.stringify(existingSubmissions));
-          console.log('Stored submission after clearing space');
-        } catch (retryError) {
-          console.error('Failed to store submission even after clearing:', retryError);
-          throw new Error('Storage quota exceeded. Please contact support.');
+        console.log('✅ Stored submission data successfully.');
+
+      } catch (storageError: any) {
+        if (storageError.name === 'QuotaExceededError' || (storageError.message && storageError.message.toLowerCase().includes('quota'))) {
+            console.warn('⚠️ Quota exceeded. Cleaning up oldest submissions...');
+
+            const submissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
+            let allDocs: any[] = Object.values(submissions).flat();
+            allDocs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+            const docsToRemove = Math.min(allDocs.length, 2);
+            if (docsToRemove === 0) {
+                 throw new Error('Storage is full and there are no old documents to remove.');
+            }
+            
+            console.log(`  - Removing ${docsToRemove} oldest document(s).`);
+            allDocs = allDocs.slice(docsToRemove);
+
+            const newSubmissions: { [key: string]: any[] } = {};
+            allDocs.forEach(doc => {
+                if (!newSubmissions[doc.department]) newSubmissions[doc.department] = [];
+                newSubmissions[doc.department].push(doc);
+            });
+
+            if (!newSubmissions[department]) newSubmissions[department] = [];
+            newSubmissions[department].push(submissionData);
+
+            try {
+                localStorage.setItem('departmentSubmissions', JSON.stringify(newSubmissions));
+                localStorage.setItem('globalSubmissions', JSON.stringify(Object.values(newSubmissions).flat()));
+                console.log('✅ Successfully cleared space and saved the new submission.');
+            } catch (retryError) {
+                console.error('❌ Failed to save submission even after cleanup:', retryError);
+                throw new Error('Storage is full. Please manually clear site data or contact support.');
+            }
+
+        } else {
+            console.error('An unexpected storage error occurred:', storageError);
+            throw storageError;
         }
       }
       
