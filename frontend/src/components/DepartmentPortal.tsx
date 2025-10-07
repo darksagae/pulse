@@ -3,25 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ugFlag from '../assets/images/ug.png';
 import officialImg from '../assets/images/admin.png';
 import { User } from '../lib/api';
+import { db, DocumentSubmission as RoutedDocument } from '../lib/db';
 import './PageStyles.css';
 
 interface DepartmentPortalProps {
   user: User;
-}
-
-interface RoutedDocument {
-  id: string;
-  documentType: string;
-  department: string;
-  images: string[];
-  timestamp: string;
-  citizenId: string;
-  status: string;
-  cardNumber: string;
-  description?: string;
-  aiExtractedData?: any[];
-  aiProcessingTime?: number;
-  originalImageCount?: number;
 }
 
 const DepartmentPortal: React.FC<DepartmentPortalProps> = ({ user }) => {
@@ -31,112 +17,40 @@ const DepartmentPortal: React.FC<DepartmentPortalProps> = ({ user }) => {
   const [routedDocuments, setRoutedDocuments] = useState<RoutedDocument[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load routed documents for this department
   useEffect(() => {
-    clearMockData();
+    const loadRoutedDocuments = async () => {
+      if (!departmentId) return;
+      setLoading(true);
+      try {
+        const documents = await db.documents
+          .where('department')
+          .equals(departmentId)
+          .toArray();
+        setRoutedDocuments(documents);
+      } catch (error) {
+        console.error('Error loading documents from IndexedDB:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     loadRoutedDocuments();
   }, [departmentId]);
 
-  // Clear any mock data from localStorage
-  const clearMockData = () => {
-    try {
-      const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      let hasChanges = false;
-      
-      // Clean up each department's submissions
-      for (const department in departmentSubmissions) {
-        const originalDocs = departmentSubmissions[department];
-        const cleanedDocs = originalDocs.filter((doc: RoutedDocument) => {
-          // Remove mock data
-          const isMock = doc.cardNumber && (
-            doc.cardNumber.includes('MOCK') ||
-            doc.cardNumber.includes('TEST') ||
-            doc.cardNumber.includes('DEMO') ||
-            doc.cardNumber.includes('SAMPLE')
-          );
-          return !isMock;
-        });
-        
-        if (cleanedDocs.length !== originalDocs.length) {
-          departmentSubmissions[department] = cleanedDocs;
-          hasChanges = true;
-        }
-      }
-      
-      if (hasChanges) {
-        localStorage.setItem('departmentSubmissions', JSON.stringify(departmentSubmissions));
-        console.log('Cleared mock data from localStorage');
-      }
-    } catch (error) {
-      console.error('Error clearing mock data:', error);
-    }
-  };
-
-  // Clear only current department's data
-  const clearCurrentDepartmentData = () => {
-    try {
-      const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      
-      // Only clear the current department's data
-      if (departmentId && departmentSubmissions[departmentId]) {
-        departmentSubmissions[departmentId] = [];
-        localStorage.setItem('departmentSubmissions', JSON.stringify(departmentSubmissions));
-        console.log(`Cleared data for ${departmentId} department only`);
-        
-        // Reload the documents to reflect the changes
-        loadRoutedDocuments();
-      }
-    } catch (error) {
-      console.error('Error clearing current department data:', error);
-    }
-  };
-
-  const loadRoutedDocuments = () => {
-    try {
-      const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      console.log('All department submissions:', departmentSubmissions);
-      console.log('Current department ID:', departmentId);
-      const currentDepartmentDocs = departmentSubmissions[departmentId || ''] || [];
-      
-      // Filter out any mock or test data
-      const realDocuments = currentDepartmentDocs.filter((doc: RoutedDocument) => {
-        // Remove any documents that look like mock data
-        const isMock = doc.citizenId === 'citizen_001' && 
-                      doc.cardNumber && 
-                      doc.cardNumber.includes('MOCK') ||
-                      doc.cardNumber.includes('TEST') ||
-                      doc.cardNumber.includes('DEMO');
-        return !isMock;
-      });
-      
-      console.log('Current department docs (filtered):', realDocuments);
-      setRoutedDocuments(realDocuments);
-    } catch (error) {
-      console.error('Error loading routed documents:', error);
-    }
-  };
-
-  // Handle document review
   const handleDocumentReview = (document: RoutedDocument) => {
-    console.log('Document review clicked:', document);
-    console.log('Navigating to:', `/document/${document.cardNumber}`);
-    console.log('Card number:', document.cardNumber);
-    const encodedCardNumber = encodeURIComponent(document.cardNumber);
-    console.log('Encoded card number:', encodedCardNumber);
-    navigate(`/document/${encodedCardNumber}`);
+    navigate(`/document-review/${encodeURIComponent(document.cardNumber)}`);
   };
 
-  // Update document status
-  const updateDocumentStatus = (documentId: string, newStatus: string) => {
-    const updatedDocs = routedDocuments.map(doc => 
-      doc.id === documentId ? { ...doc, status: newStatus } : doc
-    );
-    setRoutedDocuments(updatedDocs);
-    
-    // Update localStorage
-    const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-    departmentSubmissions[departmentId || ''] = updatedDocs;
-    localStorage.setItem('departmentSubmissions', JSON.stringify(departmentSubmissions));
+  const clearCurrentDepartmentData = async () => {
+    if (!departmentId) return;
+    if (window.confirm(`Are you sure you want to clear all data for ${departmentId} department?`)) {
+      try {
+        await db.documents.where('department').equals(departmentId).delete();
+        setRoutedDocuments([]);
+        alert(`${departmentId} department data cleared successfully!`);
+      } catch (error) {
+        console.error('Error clearing department data:', error);
+      }
+    }
   };
 
   const departmentConfig = {
