@@ -846,8 +846,9 @@ const AdminPage: React.FC = () => {
                         className="glass-btn glass-btn-primary"
                         onClick={() => {
                           // Navigate to document review page
-                          console.log('Navigating to view document:', approval.cardNumber);
-                          navigate(`/document-review/${encodeURIComponent(approval.cardNumber)}`);
+                          const cardNumber = approval.cardNumber;
+                          console.log('AdminPage: Navigating to view document with card number:', cardNumber);
+                          navigate(`/document-review/${encodeURIComponent(cardNumber)}`);
                         }}
                       >
                         View Document

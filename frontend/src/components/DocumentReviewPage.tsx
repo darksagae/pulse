@@ -55,8 +55,10 @@ const DocumentReviewPage: React.FC = () => {
         
         for (const doc of docs) {
           searchCount++;
-          console.log(`    - Checking doc ${searchCount}: ${doc.cardNumber} === ${decodedCardNumber}?`);
-          if (doc.cardNumber === decodedCardNumber) {
+          const storedCardNumber = doc.cardNumber;
+          const isMatch = storedCardNumber === decodedCardNumber;
+          console.log(`    - Checking doc ${searchCount}: Stored='${storedCardNumber}', Searched='${decodedCardNumber}', Match=${isMatch}`);
+          if (isMatch) {
             console.log('    ✅ MATCH FOUND!');
             foundDocument = doc;
             break;
@@ -75,8 +77,9 @@ const DocumentReviewPage: React.FC = () => {
         console.log('  - Images:', foundDocument.images.length);
       } else {
         console.error('❌ Document NOT FOUND!');
-        console.error('  - Looking for:', decodedCardNumber);
-        console.error('  - Available cards:', Object.values(departmentSubmissions).flat().map((d: any) => d.cardNumber));
+        console.error('  - Looking for card number:', decodedCardNumber);
+        const allCardNumbers = Object.values(departmentSubmissions).flat().map((d: any) => d.cardNumber);
+        console.error('  - Available card numbers in localStorage:', allCardNumbers);
       }
       
       setDocument(foundDocument);
