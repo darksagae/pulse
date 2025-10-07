@@ -37,28 +37,51 @@ const DocumentReviewPage: React.FC = () => {
     try {
       setLoading(true);
       const decodedCardNumber = decodeURIComponent(cardNumber || '');
-      console.log('Loading document for cardNumber:', cardNumber);
-      console.log('Decoded cardNumber for search:', decodedCardNumber);
+      console.log('🔍 LOADING DOCUMENT:');
+      console.log('  - URL cardNumber:', cardNumber);
+      console.log('  - Decoded cardNumber:', decodedCardNumber);
+      
       const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      console.log('All department submissions:', departmentSubmissions);
+      console.log('  - Departments in storage:', Object.keys(departmentSubmissions));
+      console.log('  - Total departments:', Object.keys(departmentSubmissions).length);
       
       // Find the document with the matching card number
       let foundDocument: RoutedDocument | null = null;
+      let searchCount = 0;
+      
       for (const department in departmentSubmissions) {
         const docs = departmentSubmissions[department];
-        console.log(`Checking department ${department}:`, docs);
-        const doc = docs.find((d: RoutedDocument) => d.cardNumber === decodedCardNumber);
-        if (doc) {
-          console.log('Found document:', doc);
-          foundDocument = doc;
-          break;
+        console.log(`  - Searching ${department}: ${docs.length} documents`);
+        
+        for (const doc of docs) {
+          searchCount++;
+          console.log(`    - Checking doc ${searchCount}: ${doc.cardNumber} === ${decodedCardNumber}?`);
+          if (doc.cardNumber === decodedCardNumber) {
+            console.log('    ✅ MATCH FOUND!');
+            foundDocument = doc;
+            break;
+          }
         }
+        
+        if (foundDocument) break;
       }
       
-      console.log('Final found document:', foundDocument);
+      console.log('  - Searched', searchCount, 'documents');
+      console.log('  - Found:', !!foundDocument);
+      
+      if (foundDocument) {
+        console.log('✅ Document loaded successfully');
+        console.log('  - Has AI data:', !!foundDocument.aiExtractedData);
+        console.log('  - Images:', foundDocument.images.length);
+      } else {
+        console.error('❌ Document NOT FOUND!');
+        console.error('  - Looking for:', decodedCardNumber);
+        console.error('  - Available cards:', Object.values(departmentSubmissions).flat().map((d: any) => d.cardNumber));
+      }
+      
       setDocument(foundDocument);
     } catch (error) {
-      console.error('Error loading document:', error);
+      console.error('💥 Error loading document:', error);
     } finally {
       setLoading(false);
     }
@@ -192,15 +215,38 @@ const DocumentReviewPage: React.FC = () => {
     return (
       <div className="page-container" style={{ backgroundImage: `url(${ugFlag})` }}>
         <div className="page-content">
-          <div className="error-container">
-            <h2>Document Not Found</h2>
-            <p>The document with card number "{cardNumber}" could not be found.</p>
-            <button 
-              className="action-btn primary"
-              onClick={() => navigate(-1)}
-            >
-              ← Go Back
-            </button>
+          <div className="error-container" style={{
+            padding: '40px',
+            textAlign: 'center',
+            background: 'rgba(255, 255, 255, 0.95)',
+            borderRadius: '15px',
+            maxWidth: '600px',
+            margin: '100px auto'
+          }}>
+            <h2 style={{ color: '#dc3545', marginBottom: '20px' }}>📄 Document Not Found</h2>
+            <p style={{ fontSize: '16px', marginBottom: '10px' }}>
+              The document with card number <strong>"{cardNumber}"</strong> could not be found.
+            </p>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '20px' }}>
+              Check the browser console (F12) for detailed search information.
+            </p>
+            <div style={{ marginTop: '20px' }}>
+              <button 
+                className="action-btn primary"
+                onClick={() => navigate(-1)}
+                style={{
+                  padding: '12px 24px',
+                  background: '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '16px'
+                }}
+              >
+                ← Go Back
+              </button>
+            </div>
           </div>
         </div>
       </div>

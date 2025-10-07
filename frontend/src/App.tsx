@@ -139,6 +139,7 @@ const App: React.FC = () => {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department/:departmentId" element={<DepartmentPortal user={{ id: '1', full_name: 'Official User', email: 'official@example.com', role: 'official' }} />} />
           <Route path="/document/:cardNumber" element={<DocumentReviewPage />} />
+          <Route path="/document-review/:cardNumber" element={<DocumentReviewPage />} />
           <Route path="/test" element={<ConnectionTest />} />
           <Route path="/env" element={<EnvironmentTest />} />
           <Route path="/direct" element={<DirectConnectionTest />} />
