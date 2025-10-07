@@ -93,40 +93,6 @@ const HomePage: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [backendStatus, setBackendStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
-
-  // Check backend connection on app start
-  useEffect(() => {
-    const checkBackend = async () => {
-      try {
-        // Check backend health
-        await health.check();
-        setBackendStatus('connected');
-      } catch (error) {
-        console.error('Backend connection failed:', error);
-        setBackendStatus('disconnected');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkBackend();
-  }, []);
-
-  // Show loading screen while checking backend
-  if (isLoading) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-spinner"></div>
-        <p>Loading PublicPulse...</p>
-      </div>
-    );
-  }
-
-  // Continue with app even if backend is disconnected (for demo purposes)
-  // The app will work with localStorage for now
-
   return (
     <Router>
       <div className="app-container">
