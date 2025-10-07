@@ -6,6 +6,7 @@ import { citizen } from '../lib/api';
 import { geminiAIService, ExtractedData } from '../lib/gemini-ai-service';
 import { imageMerger } from '../lib/image-merger';
 import { imageOptimizer } from '../lib/image-optimizer';
+import { db } from '../lib/db';
 import './PageStyles.css';
 import '../styles/glassmorphism.css';
 
@@ -270,7 +271,7 @@ const CitizenPage: React.FC = () => {
       console.log('  - AI Extractions to save:', successfulExtractions.length);
       
       const submissionData = {
-        id: cardNum,
+        cardNumber: cardNum,
         documentType,
         department,
         images: processedImageData, // Use merged image(s) instead of original
@@ -278,69 +279,19 @@ const CitizenPage: React.FC = () => {
         timestamp: new Date().toISOString(),
         citizenId: 'citizen_001', // This would come from user authentication
         status: 'submitted',
-        cardNumber: cardNum,
         aiExtractedData: successfulExtractions,
         aiProcessingTime: Array.isArray(extractionResults) ? extractionResults.reduce((total, result) => total + result.processingTime, 0) : 0
       };
       
-      console.log('📦 Submission Data Created:');
-      console.log('  - Has aiExtractedData:', !!submissionData.aiExtractedData);
-      console.log('  - aiExtractedData length:', submissionData.aiExtractedData?.length);
-      console.log('  - Full submission data:', submissionData);
+      console.log('📦 Submission Data Created:', submissionData);
 
-      // Store in localStorage for department access (in real app, this would be API call)
+      // Store in IndexedDB
       try {
-        const existingSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-        if (!existingSubmissions[department]) {
-          existingSubmissions[department] = [];
-        }
-        existingSubmissions[department].push(submissionData);
-        localStorage.setItem('departmentSubmissions', JSON.stringify(existingSubmissions));
-        
-        const globalSubmissions = JSON.parse(localStorage.getItem('globalSubmissions') || '[]');
-        globalSubmissions.push(submissionData);
-        localStorage.setItem('globalSubmissions', JSON.stringify(globalSubmissions));
-
-        console.log('✅ Stored submission data successfully.');
-
-      } catch (storageError: any) {
-        if (storageError.name === 'QuotaExceededError' || (storageError.message && storageError.message.toLowerCase().includes('quota'))) {
-            console.warn('⚠️ Quota exceeded. Cleaning up oldest submissions...');
-
-            const submissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-            let allDocs: any[] = Object.values(submissions).flat();
-            allDocs.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
-            const docsToRemove = Math.min(allDocs.length, 5); // Increased to 5
-            if (docsToRemove === 0) {
-                 throw new Error('Storage is full and there are no old documents to remove.');
-            }
-            
-            console.log(`  - Removing ${docsToRemove} oldest document(s).`);
-            allDocs = allDocs.slice(docsToRemove);
-
-            const newSubmissions: { [key: string]: any[] } = {};
-            allDocs.forEach(doc => {
-                if (!newSubmissions[doc.department]) newSubmissions[doc.department] = [];
-                newSubmissions[doc.department].push(doc);
-            });
-
-            if (!newSubmissions[department]) newSubmissions[department] = [];
-            newSubmissions[department].push(submissionData);
-
-            try {
-                localStorage.setItem('departmentSubmissions', JSON.stringify(newSubmissions));
-                localStorage.setItem('globalSubmissions', JSON.stringify(Object.values(newSubmissions).flat()));
-                console.log('✅ Successfully cleared space and saved the new submission.');
-            } catch (retryError) {
-                console.error('❌ Failed to save submission even after cleanup:', retryError);
-                throw new Error('Storage is full. Please manually clear site data or contact support.');
-            }
-
-        } else {
-            console.error('An unexpected storage error occurred:', storageError);
-            throw storageError;
-        }
+        await db.documents.add(submissionData);
+        console.log('✅ Stored submission data in IndexedDB successfully.');
+      } catch (error) {
+        console.error('❌ Failed to store submission in IndexedDB:', error);
+        throw new Error('Failed to save document to the local database.');
       }
       
       return true;

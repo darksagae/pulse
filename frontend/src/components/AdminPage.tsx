@@ -12,6 +12,7 @@ import {
 } from '../lib/backend-service';
 import { User, admin } from '../lib/api';
 import OfficialRegistrationForm from './Admin/OfficialRegistrationForm';
+import { db } from '../lib/db';
 import './PageStyles.css';
 import './Admin/Admin.css';
 import '../styles/glassmorphism.css';
@@ -54,11 +55,10 @@ const AdminPage: React.FC = () => {
 
   // Load admin data on component mount
   // Load department approvals from localStorage
-  const loadDepartmentApprovals = () => {
+  const loadDepartmentApprovals = async () => {
     try {
-      const storedApprovals = JSON.parse(localStorage.getItem('departmentAdminData') || '{}');
-      const allApprovals = Object.values(storedApprovals).flat();
-      console.log('Loading department approvals from localStorage:', allApprovals);
+      const allApprovals = await db.approvals.toArray();
+      console.log('Loading department approvals from IndexedDB:', allApprovals);
       setDepartmentApprovals(allApprovals);
     } catch (error) {
       console.error('Error loading department approvals:', error);

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ugFlag from '../assets/images/ug.png';
 import officialImg from '../assets/images/admin.png';
 import { ExtractedData } from '../lib/gemini-ai-service';
+import { db, DocumentSubmission as RoutedDocument } from '../lib/db';
 import './PageStyles.css';
 
 interface RoutedDocument {
@@ -33,80 +34,49 @@ const DocumentReviewPage: React.FC = () => {
     loadDocument();
   }, [cardNumber]);
 
-  const loadDocument = () => {
+  const loadDocument = async () => {
     try {
       setLoading(true);
       const decodedCardNumber = decodeURIComponent(cardNumber || '');
-      console.log('🔍 LOADING DOCUMENT:');
-      console.log('  - URL cardNumber:', cardNumber);
-      console.log('  - Decoded cardNumber:', decodedCardNumber);
       
-      const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      console.log('  - Departments in storage:', Object.keys(departmentSubmissions));
-      console.log('  - Total departments:', Object.keys(departmentSubmissions).length);
+      const foundDocument = await db.documents.where('cardNumber').equals(decodedCardNumber).first();
       
-      // Find the document with the matching card number
-      let foundDocument: RoutedDocument | null = null;
-      let searchCount = 0;
+      console.log('🔍 LOADING DOCUMENT FROM INDEXEDDB:');
+      console.log('  - Searched for:', decodedCardNumber);
+      console.log('  - Found:', foundDocument);
       
-      for (const department in departmentSubmissions) {
-        const docs = departmentSubmissions[department];
-        console.log(`  - Searching ${department}: ${docs.length} documents`);
-        
-        for (const doc of docs) {
-          searchCount++;
-          const storedCardNumber = doc.cardNumber;
-          const isMatch = storedCardNumber === decodedCardNumber;
-          console.log(`    - Checking doc ${searchCount}: Stored='${storedCardNumber}', Searched='${decodedCardNumber}', Match=${isMatch}`);
-          if (isMatch) {
-            console.log('    ✅ MATCH FOUND!');
-            foundDocument = doc;
-            break;
-          }
-        }
-        
-        if (foundDocument) break;
-      }
-      
-      console.log('  - Searched', searchCount, 'documents');
-      console.log('  - Found:', !!foundDocument);
-      
-      if (foundDocument) {
-        console.log('✅ Document loaded successfully');
-        console.log('  - Has AI data:', !!foundDocument.aiExtractedData);
-        console.log('  - Images:', foundDocument.images.length);
-      } else {
-        console.error('❌ Document NOT FOUND!');
-        console.error('  - Looking for card number:', decodedCardNumber);
-        const allCardNumbers = Object.values(departmentSubmissions).flat().map((d: any) => d.cardNumber);
-        console.error('  - Available card numbers in localStorage:', allCardNumbers);
-      }
-      
-      setDocument(foundDocument);
+      setDocument(foundDocument || null);
     } catch (error) {
-      console.error('💥 Error loading document:', error);
+      console.error('💥 Error loading document from IndexedDB:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const updateDocumentStatus = (newStatus: string) => {
+  const updateDocumentStatus = async (newStatus: string) => {
     if (!document) return;
 
     try {
-      const departmentSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
-      const departmentDocs = departmentSubmissions[document.department] || [];
-      const updatedDocs = departmentDocs.map((doc: RoutedDocument) => 
-        doc.cardNumber === cardNumber ? { ...doc, status: newStatus } : doc
-      );
-      
-      departmentSubmissions[document.department] = updatedDocs;
-      localStorage.setItem('departmentSubmissions', JSON.stringify(departmentSubmissions));
-      
-      // Send approval result to admin portal
-      sendApprovalToAdmin(document, newStatus);
-      
-      setDocument(prev => prev ? { ...prev, status: newStatus } : null);
+      if (document?.id) {
+        await db.documents.update(document.id, { status: newStatus });
+        
+        const approvalData = {
+          approvalId: `approval_${Date.now()}`,
+          cardNumber: document.cardNumber,
+          documentType: document.documentType,
+          department: document.department,
+          citizenId: document.citizenId,
+          status: newStatus,
+          timestamp: new Date().toISOString(),
+          officialAction: newStatus,
+          images: document.images,
+          feedback: generateApprovalFeedback(document, newStatus)
+        };
+        await db.approvals.add(approvalData);
+
+        setDocument(prev => prev ? { ...prev, status: newStatus } : null);
+        console.log('✅ Document status updated and approval sent to admin.');
+      }
     } catch (error) {
       console.error('Error updating document status:', error);
     }
@@ -114,37 +84,7 @@ const DocumentReviewPage: React.FC = () => {
 
   // Send approval result to admin portal
   const sendApprovalToAdmin = (document: RoutedDocument, status: string) => {
-    try {
-      const approvalData = {
-        id: `approval_${Date.now()}`,
-        cardNumber: document.cardNumber,
-        documentType: document.documentType,
-        department: document.department,
-        citizenId: document.citizenId,
-        status: status,
-        timestamp: new Date().toISOString(),
-        officialAction: status,
-        images: document.images,
-        feedback: generateApprovalFeedback(document, status)
-      };
-
-      // Store in admin notifications
-      const adminNotifications = JSON.parse(localStorage.getItem('adminNotifications') || '[]');
-      adminNotifications.push(approvalData);
-      localStorage.setItem('adminNotifications', JSON.stringify(adminNotifications));
-
-      // Store in department-specific admin data
-      const departmentAdminData = JSON.parse(localStorage.getItem('departmentAdminData') || '{}');
-      if (!departmentAdminData[document.department]) {
-        departmentAdminData[document.department] = [];
-      }
-      departmentAdminData[document.department].push(approvalData);
-      localStorage.setItem('departmentAdminData', JSON.stringify(departmentAdminData));
-
-      console.log('Approval sent to admin portal:', approvalData);
-    } catch (error) {
-      console.error('Error sending approval to admin:', error);
-    }
+    // This function is now handled by updateDocumentStatus
   };
 
   // Generate logical feedback based on approval decision
