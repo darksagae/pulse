@@ -216,8 +216,8 @@ const CitizenPage: React.FC = () => {
 
       // Extract data using Gemini AI
       console.log('Starting AI extraction for', processedImageData.length, 'image(s)');
-      let extractionResults = [];
-      let successfulExtractions = [];
+      let extractionResults: any[] = [];
+      let successfulExtractions: ExtractedData[] = [];
       
       try {
         extractionResults = await geminiAIService.extractMultipleDocuments(processedImageData, documentType);
