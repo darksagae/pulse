@@ -6,20 +6,6 @@ import { ExtractedData } from '../lib/gemini-ai-service';
 import { db, DocumentSubmission as RoutedDocument } from '../lib/db';
 import './PageStyles.css';
 
-interface RoutedDocument {
-  id: string;
-  documentType: string;
-  department: string;
-  images: string[];
-  timestamp: string;
-  citizenId: string;
-  status: string;
-  cardNumber: string;
-  description?: string;
-  aiExtractedData?: ExtractedData[];
-  aiProcessingTime?: number;
-}
-
 const DocumentReviewPage: React.FC = () => {
   const { cardNumber } = useParams<{ cardNumber: string }>();
   const navigate = useNavigate();
