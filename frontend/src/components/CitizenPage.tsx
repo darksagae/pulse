@@ -169,7 +169,9 @@ const CitizenPage: React.FC = () => {
       let processedImageData: string[];
       
       if (imageData.length >= 2) {
-        console.log('Merging', imageData.length, 'images into a single image...');
+        console.log('🔄 STEP 1: Merging', imageData.length, 'images into a single image...');
+        console.log('  - Original images count:', imageData.length);
+        console.log('  - Original image sizes:', imageData.map((img, i) => `Image ${i+1}: ${(img.length / 1024 / 1024).toFixed(2)}MB`));
         try {
           const mergedImage = await imageMerger.mergeImages(imageData, {
             layout: 'horizontal', // Side by side
@@ -179,17 +181,20 @@ const CitizenPage: React.FC = () => {
             spacing: 30
           });
           processedImageData = [mergedImage];
-          console.log('Successfully merged images into one');
+          console.log('✅ Successfully merged images into one');
+          console.log('  - Merged image size:', (mergedImage.length / 1024 / 1024).toFixed(2), 'MB');
         } catch (mergeError) {
-          console.error('Error merging images, using original images:', mergeError);
+          console.error('❌ Error merging images, using original images:', mergeError);
           processedImageData = imageData;
         }
       } else {
+        console.log('📸 Single image upload, no merging needed');
         processedImageData = imageData;
       }
 
       // Optimize images for Gemini API (handles large images automatically)
-      console.log('Optimizing images for AI processing...');
+      console.log('⚙️ STEP 2: Optimizing images for AI processing...');
+      console.log('  - Images to optimize:', processedImageData.length);
       setIsOptimizing(true);
       try {
         const optimizedImages = await imageOptimizer.optimizeBatch(
@@ -202,45 +207,68 @@ const CitizenPage: React.FC = () => {
             minQuality: 0.70
           },
           (current, total) => {
-            console.log(`Optimizing image ${current}/${total}...`);
+            console.log(`  - Optimizing image ${current}/${total}...`);
           }
         );
         processedImageData = optimizedImages;
-        console.log('Image optimization completed successfully');
+        console.log('✅ Image optimization completed');
+        console.log('  - Optimized images count:', optimizedImages.length);
+        console.log('  - Optimized sizes:', optimizedImages.map((img, i) => `Image ${i+1}: ${(img.length / 1024 / 1024).toFixed(2)}MB`));
       } catch (optimizeError) {
-        console.error('Error optimizing images, proceeding with unoptimized:', optimizeError);
+        console.error('❌ Error optimizing images, proceeding with unoptimized:', optimizeError);
         // Continue with unoptimized images
       } finally {
         setIsOptimizing(false);
       }
 
       // Extract data using Gemini AI
-      console.log('Starting AI extraction for', processedImageData.length, 'image(s)');
+      console.log('🤖 STEP 3: Starting AI extraction...');
+      console.log('  - Images to process:', processedImageData.length);
+      console.log('  - Document type:', documentType);
+      console.log('  - Image data being sent to AI:', processedImageData.length > 0 ? 'YES ✅' : 'NO ❌');
+      
       let extractionResults: any[] = [];
       let successfulExtractions: ExtractedData[] = [];
       
       try {
         extractionResults = await geminiAIService.extractMultipleDocuments(processedImageData, documentType);
         
-        // Log all results for debugging
-        console.log('All extraction results:', extractionResults);
+        console.log('📊 AI Extraction Results:');
+        console.log('  - Total results:', extractionResults.length);
+        console.log('  - Results detail:', extractionResults);
         
         // Filter successful extractions
         successfulExtractions = extractionResults
           .filter(result => result.success && result.data)
           .map(result => result.data!);
         
-        console.log('Successful extractions:', successfulExtractions.length, 'out of', extractionResults.length);
+        console.log('✅ Successful extractions:', successfulExtractions.length, 'out of', extractionResults.length);
+        
+        if (successfulExtractions.length > 0) {
+          console.log('📄 Extracted Data Preview:');
+          console.log('  - Name:', successfulExtractions[0].personalInfo.fullName);
+          console.log('  - ID Number:', successfulExtractions[0].personalInfo.idNumber);
+          console.log('  - Confidence:', successfulExtractions[0].confidence.overall + '%');
+          console.log('  - Village:', successfulExtractions[0].personalInfo.address.village);
+          console.log('  - District:', successfulExtractions[0].personalInfo.address.district);
+        } else {
+          console.warn('⚠️ NO SUCCESSFUL EXTRACTIONS! Check Gemini API response above.');
+        }
+        
         setAiExtractionData(successfulExtractions);
-        console.log('AI extraction completed:', successfulExtractions);
       } catch (aiError) {
-        console.error('AI extraction failed, continuing with submission:', aiError);
+        console.error('❌ AI extraction failed completely:', aiError);
+        console.error('  - Error details:', aiError);
         // Continue with submission even if AI fails
         extractionResults = [];
         successfulExtractions = [];
       }
 
       // Create submission data with card number and AI extraction
+      console.log('💾 STEP 4: Creating submission data...');
+      console.log('  - Card Number:', cardNum);
+      console.log('  - AI Extractions to save:', successfulExtractions.length);
+      
       const submissionData = {
         id: cardNum,
         documentType,
@@ -254,8 +282,14 @@ const CitizenPage: React.FC = () => {
         aiExtractedData: successfulExtractions,
         aiProcessingTime: Array.isArray(extractionResults) ? extractionResults.reduce((total, result) => total + result.processingTime, 0) : 0
       };
+      
+      console.log('📦 Submission Data Created:');
+      console.log('  - Has aiExtractedData:', !!submissionData.aiExtractedData);
+      console.log('  - aiExtractedData length:', submissionData.aiExtractedData?.length);
+      console.log('  - Full submission data:', submissionData);
 
       // Store in localStorage for department access (in real app, this would be API call)
+      console.log('💾 STEP 5: Storing to localStorage...');
       try {
         const existingSubmissions = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
         if (!existingSubmissions[department]) {
@@ -264,8 +298,16 @@ const CitizenPage: React.FC = () => {
         existingSubmissions[department].push(submissionData);
         localStorage.setItem('departmentSubmissions', JSON.stringify(existingSubmissions));
         
-        console.log('Stored submission data with AI extraction:', submissionData);
-        console.log('Updated department submissions:', existingSubmissions);
+        console.log('✅ Stored submission data successfully');
+        console.log('  - Department:', department);
+        console.log('  - Card Number:', cardNum);
+        console.log('  - AI Data Included:', !!submissionData.aiExtractedData && submissionData.aiExtractedData.length > 0);
+        
+        // Verify it was saved correctly
+        const verifyData = JSON.parse(localStorage.getItem('departmentSubmissions') || '{}');
+        const savedDoc = verifyData[department]?.find((d: any) => d.cardNumber === cardNum);
+        console.log('🔍 Verification - Document saved with AI data:', !!savedDoc?.aiExtractedData);
+        console.log('  - Saved AI data length:', savedDoc?.aiExtractedData?.length);
 
         // Also store in a global submissions array for tracking
         const globalSubmissions = JSON.parse(localStorage.getItem('globalSubmissions') || '[]');

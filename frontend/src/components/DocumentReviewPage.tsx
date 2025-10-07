@@ -56,28 +56,6 @@ const DocumentReviewPage: React.FC = () => {
       }
       
       console.log('Final found document:', foundDocument);
-      
-      // Debug: Check AI data in detail
-      if (foundDocument) {
-        console.log('📄 Document Retrieved for Review:');
-        console.log('  - Card Number:', foundDocument.cardNumber);
-        console.log('  - Department:', foundDocument.department);
-        console.log('  - Has aiExtractedData:', !!foundDocument.aiExtractedData);
-        console.log('  - aiExtractedData type:', typeof foundDocument.aiExtractedData);
-        console.log('  - aiExtractedData length:', foundDocument.aiExtractedData?.length);
-        console.log('  - Full aiExtractedData:', foundDocument.aiExtractedData);
-        
-        if (foundDocument.aiExtractedData && foundDocument.aiExtractedData.length > 0) {
-          console.log('  ✅ AI Data Available:', {
-            name: foundDocument.aiExtractedData[0].personalInfo.fullName,
-            id: foundDocument.aiExtractedData[0].personalInfo.idNumber,
-            confidence: foundDocument.aiExtractedData[0].confidence.overall + '%'
-          });
-        } else {
-          console.log('  ❌ No AI Data Available');
-        }
-      }
-      
       setDocument(foundDocument);
     } catch (error) {
       console.error('Error loading document:', error);
