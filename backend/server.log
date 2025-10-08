@@ -61,3 +61,21 @@ INFO:     10.0.2.2:57076 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
 INFO:     10.0.2.2:47712 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
 INFO:     10.0.2.2:48864 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
 INFO:     10.0.2.2:53214 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     10.0.2.2:56276 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     10.0.2.2:50606 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     10.0.2.2:46176 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     10.0.2.2:51248 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     10.0.2.2:40328 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     10.0.2.2:44780 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     10.0.2.2:48320 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     10.0.2.2:47698 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     10.0.2.2:49060 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:59556 - "GET /health HTTP/1.1" 200 OK
+🤖 Gemini AI Processing: Document extraction for unknown
+📸 Processing image 1/1
+📸 Image size OK: 0.1KB
+🔍 Gemini API response structure: ['candidates', 'usageMetadata', 'modelVersion', 'responseId']
+⚠️ Supabase error, falling back to in-memory storage: [Errno -2] Name or service not known
+📝 Document saved to in-memory storage: c1ec2fd8-5e58-4925-8829-70d1c715bec5
+INFO:     127.0.0.1:56272 - "POST /api/users/citizen/submit-document HTTP/1.1" 200 OK
+INFO:     10.0.2.2:46746 - "POST /api/v1/sentinel/push HTTP/1.1" 400 Bad Request

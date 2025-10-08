@@ -3,7 +3,7 @@ import ugFlag from '../assets/images/ug.png';
 import citizenIcon from '../assets/images/citizen.png';
 import { DocumentData, NotificationData } from '../lib/backend-service';
 import { citizen } from '../lib/api';
-import { geminiAIService, ExtractedData } from '../lib/gemini-ai-service';
+import { ExtractedData } from '../lib/gemini-ai-service';
 import { imageMerger } from '../lib/image-merger';
 import { imageOptimizer } from '../lib/image-optimizer';
 import { db } from '../lib/db';
@@ -177,14 +177,7 @@ const CitizenPage: React.FC = () => {
       console.log('Step 3: Optimizing images...');
       const optimizedImages = await imageOptimizer.optimizeBatch(processedImageData);
 
-      console.log('Step 4: Extracting data with AI (client-side, optional)...');
-      const extractionResults = await geminiAIService.extractMultipleDocuments(optimizedImages, documentType);
-      const successfulExtractions = extractionResults
-        .filter(result => result.success && result.data)
-        .map(result => result.data!);
-
-      // NEW: Send to backend so officials and server-side AI can access
-      console.log('Step 5: Submitting to backend...');
+      console.log('Step 4: Submitting to backend for AI processing...');
       await citizen.submitDocument({
         document_type: documentType,
         department_id: department,
@@ -201,11 +194,11 @@ const CitizenPage: React.FC = () => {
         timestamp: new Date().toISOString(),
         citizenId: 'citizen_001',
         status: 'submitted',
-        aiExtractedData: successfulExtractions,
-        aiProcessingTime: extractionResults.reduce((total, result) => total + (result.processingTime || 0), 0)
+        aiExtractedData: [], // Will be populated by backend AI processing
+        aiProcessingTime: 0 // Will be updated by backend
       };
       
-      console.log('Step 6: Saving to IndexedDB...');
+      console.log('Step 5: Saving to IndexedDB...');
       await db.documents.add(submissionData);
       console.log('✅ Successfully saved to IndexedDB.');
 
@@ -547,13 +540,12 @@ const CitizenPage: React.FC = () => {
                   >
                     Cancel
                   </button>
-                  <button 
+                  <button
                     className="action-btn primary" 
                     onClick={handleDocumentSubmit}
-                    disabled={loading || isExtracting || isOptimizing || !selectedDocumentType || !selectedDepartment || uploadedFiles.length === 0}
+                    disabled={loading || isOptimizing || !selectedDocumentType || !selectedDepartment || uploadedFiles.length === 0}
                   >
                     {isOptimizing ? '⚙️ Optimizing Images...' :
-                     isExtracting ? '🤖 AI Extracting Data...' : 
                      loading ? 'Submitting...' : 'Submit Document'}
                   </button>
                 </div>
