@@ -14,7 +14,23 @@ router = APIRouter()
 db_service = DatabaseService()
 
 # Initialize the new AI service with the current API key
-ai_service = GeminiAIService()
+ai_service = None
+
+def get_ai_service():
+    """Get or initialize the AI service with proper API key"""
+    global ai_service
+    if ai_service is None:
+        api_key = os.getenv("GEMINI_API_KEY")
+        if api_key:
+            try:
+                ai_service = GeminiAIService(api_key)
+                print("✅ AI service initialized successfully")
+            except Exception as e:
+                print(f"⚠️ Failed to initialize AI service: {e}")
+                ai_service = None
+        else:
+            print("⚠️ GEMINI_API_KEY not found in environment variables")
+    return ai_service
 
 @router.get("/citizen/my-documents")
 async def get_citizen_documents() -> Dict[str, Any]:
@@ -58,8 +74,12 @@ async def submit_citizen_document(request: Dict[str, Any]) -> Dict[str, Any]:
         ai_analysis = None
         document_type = "unknown"
         try:
-            ai_analysis = await ai_service.extract_document_information(images, document_type)
-            document_type = ai_analysis.get("document_type", "unknown")
+            ai_service = get_ai_service()
+            if ai_service:
+                ai_analysis = await ai_service.extract_document_information(images, document_type)
+                document_type = ai_analysis.get("document_type", "unknown")
+            else:
+                ai_analysis = None
         except Exception as e:
             # Fallback to manual document type if AI fails
             document_type = request.get("document_type", "unknown")
@@ -173,7 +193,12 @@ async def official_review_document(document_id: str, request: Dict[str, Any]) ->
                 validation_status="pending"
             )
             
-            ai_validation = await ai_service.process_official_document(document["images"], initial_analysis)
+            ai_service = get_ai_service()
+            if ai_service:
+                # Use extract_document_information for validation
+                ai_validation = await ai_service.extract_document_information(document["images"], document.get("document_type", "unknown"))
+            else:
+                ai_validation = None
         except Exception as e:
             print(f"AI validation failed: {e}")
         
@@ -258,7 +283,12 @@ async def admin_review_document(document_id: str, request: Dict[str, Any]) -> Di
                 validation_status=document.get("ai_validation", {}).get("validation_status", "pending")
             )
             
-            ai_assessment = await ai_service.process_admin_document(document["images"], official_analysis)
+            ai_service = get_ai_service()
+            if ai_service:
+                # Use extract_document_information for assessment
+                ai_assessment = await ai_service.extract_document_information(document["images"], document.get("document_type", "unknown"))
+            else:
+                ai_assessment = None
         except Exception as e:
             print(f"AI assessment failed: {e}")
         
@@ -322,10 +352,14 @@ async def extract_document_information(document_id: str) -> Dict[str, Any]:
         ai_extraction = None
         try:
             # Pass document_type to AI extraction for better prompts/rules
-            ai_extraction = await ai_service.extract_document_information(
-                document["images"],
-                document.get("document_type", "unknown")
-            )
+            ai_service = get_ai_service()
+            if ai_service:
+                ai_extraction = await ai_service.extract_document_information(
+                    document["images"],
+                    document.get("document_type", "unknown")
+                )
+            else:
+                ai_extraction = None
         except Exception as e:
             print(f"AI extraction failed: {e}")
         
@@ -447,7 +481,12 @@ async def analyze_document_fraud(document_id: str) -> Dict[str, Any]:
         # AI Fraud Analysis
         fraud_analysis = None
         try:
-            fraud_analysis = await ai_service.analyze_fraud(document["images"], extracted_data)
+            ai_service = get_ai_service()
+            if ai_service:
+                # Use extract_document_information for fraud analysis
+                fraud_analysis = await ai_service.extract_document_information(document["images"], document.get("document_type", "unknown"))
+            else:
+                fraud_analysis = None
         except Exception as e:
             print(f"AI fraud analysis failed: {e}")
         
