@@ -63,7 +63,7 @@ const CitizenPage: React.FC = () => {
   // Test backend connection
   const testBackendConnection = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/health`);
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://publicpulse-backend.onrender.com'}/health`);
       if (response.ok) {
         const data = await response.json();
         console.log('Backend connection test successful:', data);

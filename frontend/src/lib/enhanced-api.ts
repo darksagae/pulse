@@ -1,5 +1,5 @@
 // Enhanced API service for complete document workflow
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://publicpulse-backend.onrender.com';
 
 // Types for enhanced API
 export interface EnhancedDocument {

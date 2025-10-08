@@ -17,8 +17,8 @@ const DirectConnectionTest: React.FC = () => {
 
     try {
       // Test 1: Direct fetch to localhost
-      addResult('Testing direct fetch to localhost:8000...', 'info');
-      const directResponse = await fetch('http://localhost:8000/health');
+      addResult('Testing direct fetch to Render backend...', 'info');
+      const directResponse = await fetch('https://publicpulse-backend.onrender.com/health');
       const directData = await directResponse.json();
       
       if (directResponse.ok) {
@@ -28,7 +28,7 @@ const DirectConnectionTest: React.FC = () => {
       }
 
       // Test 2: Using environment variable
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+      const apiUrl = process.env.REACT_APP_API_URL || 'https://publicpulse-backend.onrender.com';
       addResult(`Testing with environment variable: ${apiUrl}`, 'info');
       
       const envResponse = await fetch(`${apiUrl}/health`);

@@ -1,5 +1,5 @@
 // Test script to verify frontend-backend connection
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'https://publicpulse-backend.onrender.com';
 
 async function testConnection() {
   console.log('🧪 Testing Frontend-Backend Connection...');

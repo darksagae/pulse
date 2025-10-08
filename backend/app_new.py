@@ -14,6 +14,9 @@ import uuid
 from datetime import datetime
 import base64
 
+# Import the new AI service
+from ai_service_with_gemini import GeminiAIService
+
 # Initialize FastAPI app
 app = FastAPI(
     title="PublicPulse API",
@@ -31,6 +34,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Initialize the real AI service
+ai_service = GeminiAIService()
 
 # Pydantic Models
 class User(BaseModel):
@@ -258,8 +264,8 @@ async def login_official(
 async def submit_document(submission: DocumentSubmission):
     document_id = generate_id()
     
-    # Mock AI processing
-    ai_result = mock_ai_analysis(submission.document_type, submission.images)
+    # Real AI processing
+    ai_result = await ai_service.extract_document_information(submission.images, submission.document_type)
     
     document = {
         "id": document_id,
@@ -267,10 +273,18 @@ async def submit_document(submission: DocumentSubmission):
         "citizen_id": "citizen_001",
         "document_type": submission.document_type,
         "department_id": submission.department_id or "dept_001",
-        "status": "submitted",
+        # mark as processed so UI shows AI section
+        "status": "ai_processed",
         "images": submission.images,
         "description": submission.description,
-        **ai_result,
+        # provide both shapes for different UIs
+        "ai_extracted_fields": ai_result.get("extracted_data"),
+        "ai_extracted_data": ai_result.get("extracted_data"),
+        "ai_confidence": ai_result.get("ai_confidence"),
+        "ai_quality_score": ai_result.get("ai_quality_score"),
+        "ai_fraud_risk": ai_result.get("ai_fraud_risk"),
+        "ai_recommendations": ai_result.get("ai_recommendations", []),
+        "ai_issues": ai_result.get("ai_issues", []),
         "created_at": get_current_timestamp(),
         "updated_at": get_current_timestamp()
     }
@@ -281,7 +295,7 @@ async def submit_document(submission: DocumentSubmission):
         "success": True,
         "message": "Document submitted successfully",
         "document_id": document_id,
-        "status": "submitted",
+        "status": document["status"],
         "submitted_at": document["created_at"]
     }
 

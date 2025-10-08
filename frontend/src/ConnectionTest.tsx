@@ -18,7 +18,7 @@ const ConnectionTest: React.FC = () => {
     try {
       // Test 1: Basic health check
       addResult('Testing backend health...', 'info');
-      const healthResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/health`);
+      const healthResponse = await fetch(`${process.env.REACT_APP_API_URL || 'https://publicpulse-backend.onrender.com'}/health`);
       const healthData = await healthResponse.json();
       
       if (healthResponse.ok) {
@@ -29,7 +29,7 @@ const ConnectionTest: React.FC = () => {
 
       // Test 2: Admin stats
       addResult('Testing admin stats API...', 'info');
-      const statsResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/admin/stats`);
+      const statsResponse = await fetch(`${process.env.REACT_APP_API_URL || 'https://publicpulse-backend.onrender.com'}/api/admin/stats`);
       const statsData = await statsResponse.json();
       
       if (statsResponse.ok) {
@@ -40,7 +40,7 @@ const ConnectionTest: React.FC = () => {
 
       // Test 3: Document submission
       addResult('Testing document submission...', 'info');
-      const submitResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/documents/submit`, {
+      const submitResponse = await fetch(`${process.env.REACT_APP_API_URL || 'https://publicpulse-backend.onrender.com'}/api/documents/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -59,7 +59,7 @@ const ConnectionTest: React.FC = () => {
 
       // Test 4: AI integration
       addResult('Testing AI integration...', 'info');
-      const aiResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/ai/test`, {
+      const aiResponse = await fetch(`${process.env.REACT_APP_API_URL || 'https://publicpulse-backend.onrender.com'}/api/ai/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

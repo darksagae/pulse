@@ -1,7 +1,7 @@
 import React from 'react';
 
 const EnvironmentTest: React.FC = () => {
-  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+  const apiUrl = process.env.REACT_APP_API_URL || 'https://publicpulse-backend.onrender.com';
   
   return (
     <div style={{ 
@@ -33,8 +33,8 @@ const EnvironmentTest: React.FC = () => {
       }}>
         <h3>Expected Configuration:</h3>
         <ul>
-          <li>✅ REACT_APP_API_URL should be: <code>http://localhost:8000</code></li>
-          <li>✅ Final API URL should be: <code>http://localhost:8000</code></li>
+          <li>✅ REACT_APP_API_URL should be: <code>https://publicpulse-backend.onrender.com</code></li>
+          <li>✅ Final API URL should be: <code>https://publicpulse-backend.onrender.com</code></li>
           <li>❌ If you see "Not set (using default)", the environment variable is not loaded</li>
         </ul>
       </div>

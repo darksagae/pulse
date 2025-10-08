@@ -1,5 +1,5 @@
 // Backend Service for Document Processing
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://publicpulse-backend.onrender.com';
 
 export interface DocumentData {
   id?: string;
