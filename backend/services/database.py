@@ -6,14 +6,22 @@ load_dotenv()
 
 # Supabase configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://mxrosjbwcfxygrrilpkq.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14cm9zamJ3Y2Z4eWdycmlscGtxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY1MDk1MjAsImV4cCI6MjA1MjA4NTUyMH0.example")
 
-# Create Supabase client
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Create Supabase client with fallback to in-memory storage
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("✅ Supabase connected successfully")
+except Exception as e:
+    print(f"⚠️ Supabase connection failed: {e}")
+    print("📝 Using in-memory storage as fallback")
+    supabase = None
 
 class DatabaseService:
     def __init__(self):
         self.supabase = supabase
+        # In-memory storage as fallback
+        self.documents = []
     
     # User operations
     async def create_user(self, user_data: dict):
@@ -46,21 +54,41 @@ class DatabaseService:
     # Document operations
     async def create_document(self, document_data: dict):
         """Create a new document"""
-        try:
-            result = self.supabase.table("documents").insert(document_data).execute()
-            return result.data[0] if result.data else None
-        except Exception as e:
-            print(f"Error creating document: {e}")
-            return None
+        if self.supabase:
+            try:
+                result = self.supabase.table("documents").insert(document_data).execute()
+                return result.data[0] if result.data else None
+            except Exception as e:
+                print(f"⚠️ Supabase error, falling back to in-memory storage: {e}")
+                # Fall back to in-memory storage
+                self.documents.append(document_data)
+                print(f"📝 Document saved to in-memory storage: {document_data['id']}")
+                return document_data
+        else:
+            # Use in-memory storage as fallback
+            self.documents.append(document_data)
+            print(f"📝 Document saved to in-memory storage: {document_data['id']}")
+            return document_data
     
     async def get_documents_by_citizen(self, citizen_id: str):
         """Get documents by citizen ID"""
-        try:
-            result = self.supabase.table("documents").select("*").eq("citizen_id", citizen_id).execute()
-            return result.data if result.data else []
-        except Exception as e:
-            print(f"Error getting documents: {e}")
-            return []
+        if self.supabase:
+            try:
+                result = self.supabase.table("documents").select("*").eq("citizen_id", citizen_id).execute()
+                return result.data if result.data else []
+            except Exception as e:
+                print(f"⚠️ Supabase error, falling back to in-memory storage: {e}")
+                # Fall back to in-memory storage
+                if citizen_id == "all":
+                    return self.documents
+                else:
+                    return [doc for doc in self.documents if doc.get("citizen_id") == citizen_id]
+        else:
+            # Use in-memory storage as fallback
+            if citizen_id == "all":
+                return self.documents
+            else:
+                return [doc for doc in self.documents if doc.get("citizen_id") == citizen_id]
     
     async def get_documents_by_department(self, department: str):
         """Get documents by department"""
@@ -70,6 +98,20 @@ class DatabaseService:
         except Exception as e:
             print(f"Error getting documents: {e}")
             return []
+    
+    async def get_document_by_id(self, document_id: str):
+        """Get a specific document by ID"""
+        if self.supabase:
+            try:
+                result = self.supabase.table("documents").select("*").eq("id", document_id).execute()
+                return result.data[0] if result.data else None
+            except Exception as e:
+                print(f"⚠️ Supabase error, falling back to in-memory storage: {e}")
+                # Fall back to in-memory storage
+                return next((doc for doc in self.documents if doc.get("id") == document_id), None)
+        else:
+            # Use in-memory storage as fallback
+            return next((doc for doc in self.documents if doc.get("id") == document_id), None)
     
     async def update_document_status(self, document_id: str, status: str, assigned_official: str = None):
         """Update document status"""

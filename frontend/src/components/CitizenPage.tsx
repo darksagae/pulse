@@ -177,11 +177,20 @@ const CitizenPage: React.FC = () => {
       console.log('Step 3: Optimizing images...');
       const optimizedImages = await imageOptimizer.optimizeBatch(processedImageData);
 
-      console.log('Step 4: Extracting data with AI...');
+      console.log('Step 4: Extracting data with AI (client-side, optional)...');
       const extractionResults = await geminiAIService.extractMultipleDocuments(optimizedImages, documentType);
       const successfulExtractions = extractionResults
         .filter(result => result.success && result.data)
         .map(result => result.data!);
+
+      // NEW: Send to backend so officials and server-side AI can access
+      console.log('Step 5: Submitting to backend...');
+      await citizen.submitDocument({
+        document_type: documentType,
+        department_id: department,
+        images: optimizedImages,
+        description: documentDescription || undefined,
+      });
 
       const submissionData = {
         cardNumber: cardNum,
@@ -196,7 +205,7 @@ const CitizenPage: React.FC = () => {
         aiProcessingTime: extractionResults.reduce((total, result) => total + (result.processingTime || 0), 0)
       };
       
-      console.log('Step 5: Saving to IndexedDB...');
+      console.log('Step 6: Saving to IndexedDB...');
       await db.documents.add(submissionData);
       console.log('✅ Successfully saved to IndexedDB.');
 

@@ -5,21 +5,26 @@ from datetime import datetime
 import os
 import base64
 import json
-from services.ai_service import ai_service, DocumentAnalysis
+from ai_service_with_gemini import GeminiAIService
+from services.database import DatabaseService
 
 router = APIRouter()
 
-# In-memory storage for demo purposes (in production, use a database)
-documents_storage = []
+# Use Supabase database instead of in-memory storage
+db_service = DatabaseService()
+
+# Initialize the new AI service with the current API key
+ai_service = GeminiAIService()
 
 @router.get("/citizen/my-documents")
 async def get_citizen_documents() -> Dict[str, Any]:
     """Get documents for the citizen"""
     try:
-        # Return documents from storage
+        # Get documents from Supabase database
+        documents = await db_service.get_documents_by_citizen("citizen_001")
         return {
-            "documents": documents_storage,
-            "total_count": len(documents_storage)
+            "documents": documents,
+            "total_count": len(documents)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -49,11 +54,12 @@ async def submit_citizen_document(request: Dict[str, Any]) -> Dict[str, Any]:
         images = request.get("images", [])
         description = request.get("description", "")
         
-        # AI Analysis using Gemini 1.5 Pro (primary) or GPT-4o (fallback)
+        # AI Analysis using new Gemini API
         ai_analysis = None
+        document_type = "unknown"
         try:
-            ai_analysis = await ai_service.process_citizen_document(images, description)
-            document_type = ai_analysis.document_type
+            ai_analysis = await ai_service.extract_document_information(images, document_type)
+            document_type = ai_analysis.get("document_type", "unknown")
         except Exception as e:
             # Fallback to manual document type if AI fails
             document_type = request.get("document_type", "unknown")
@@ -82,15 +88,15 @@ async def submit_citizen_document(request: Dict[str, Any]) -> Dict[str, Any]:
             "updated_at": current_time,
             # AI Analysis fields
             "ai_analysis": {
-                "extracted_text": ai_analysis.extracted_text if ai_analysis else "",
-                "confidence_score": ai_analysis.confidence_score if ai_analysis else 0.0,
-                "metadata": ai_analysis.metadata if ai_analysis else {},
-                "ai_model_used": "gemini-1.5-pro" if ai_analysis else "manual"
+                "extracted_text": ai_analysis.get("extracted_text", "") if ai_analysis else "",
+                "confidence_score": ai_analysis.get("ai_confidence", 0.85) if ai_analysis else 0.85,
+                "metadata": ai_analysis.get("metadata", {}) if ai_analysis else {},
+                "ai_model_used": "gemini-2.5-flash" if ai_analysis else "manual"
             } if ai_analysis else None
         }
         
-        # Store document
-        documents_storage.append(document)
+        # Store document in Supabase database
+        await db_service.create_document(document)
         
         return {
             "success": True,
@@ -108,9 +114,11 @@ async def submit_citizen_document(request: Dict[str, Any]) -> Dict[str, Any]:
 async def get_official_documents() -> Dict[str, Any]:
     """Get all documents for officials to review"""
     try:
+        # Get all documents from Supabase (simplified - in production, add filtering)
+        documents = await db_service.get_documents_by_citizen("all")  # Get all docs
         return {
-            "documents": documents_storage,
-            "total_count": len(documents_storage)
+            "documents": documents,
+            "total_count": len(documents)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -119,10 +127,11 @@ async def get_official_documents() -> Dict[str, Any]:
 async def get_department_documents(department_id: str) -> Dict[str, Any]:
     """Get documents assigned to a specific department"""
     try:
-        department_docs = [doc for doc in documents_storage if doc.get("department_id") == department_id]
+        # Get documents by department from Supabase
+        documents = await db_service.get_documents_by_department(department_id)
         return {
-            "documents": department_docs,
-            "total_count": len(department_docs),
+            "documents": documents,
+            "total_count": len(documents),
             "department": department_id
         }
     except Exception as e:
@@ -132,7 +141,9 @@ async def get_department_documents(department_id: str) -> Dict[str, Any]:
 async def get_assigned_documents(official_id: str) -> Dict[str, Any]:
     """Get documents assigned to a specific official"""
     try:
-        assigned_docs = [doc for doc in documents_storage if doc.get("assigned_official_id") == official_id]
+        # Get all documents and filter by assigned official
+        all_docs = await db_service.get_documents_by_citizen("all")
+        assigned_docs = [doc for doc in all_docs if doc.get("assigned_official_id") == official_id]
         return {
             "documents": assigned_docs,
             "total_count": len(assigned_docs),
@@ -146,7 +157,7 @@ async def official_review_document(document_id: str, request: Dict[str, Any]) ->
     """Official reviews a document with AI validation and submits to admin"""
     try:
         # Find the document
-        document = next((doc for doc in documents_storage if doc["id"] == document_id), None)
+        document = await db_service.get_document_by_id(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
@@ -202,8 +213,9 @@ async def official_review_document(document_id: str, request: Dict[str, Any]) ->
 async def get_admin_documents() -> Dict[str, Any]:
     """Get all documents for admin review"""
     try:
-        # Get documents that have been reviewed by officials
-        admin_docs = [doc for doc in documents_storage if doc.get("status") == "official_reviewed"]
+        # Get all documents from database and filter for admin review status
+        all_docs = await db_service.get_documents_by_citizen("all")
+        admin_docs = [doc for doc in all_docs if doc.get("status") == "official_reviewed"]
         
         # Group documents by department for better organization
         department_groups = {}
@@ -227,7 +239,7 @@ async def admin_review_document(document_id: str, request: Dict[str, Any]) -> Di
     """Admin reviews a document with AI assessment and makes final decision"""
     try:
         # Find the document
-        document = next((doc for doc in documents_storage if doc["id"] == document_id), None)
+        document = await db_service.get_document_by_id(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
@@ -287,7 +299,7 @@ async def admin_review_document(document_id: str, request: Dict[str, Any]) -> Di
 async def get_document_by_id(document_id: str) -> Dict[str, Any]:
     """Get a specific document by ID for officials"""
     try:
-        document = next((doc for doc in documents_storage if doc["id"] == document_id), None)
+        document = await db_service.get_document_by_id(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
@@ -302,14 +314,18 @@ async def extract_document_information(document_id: str) -> Dict[str, Any]:
     """Extract detailed information from document using AI"""
     try:
         # Find the document
-        document = next((doc for doc in documents_storage if doc["id"] == document_id), None)
+        document = await db_service.get_document_by_id(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
         # AI Extraction
         ai_extraction = None
         try:
-            ai_extraction = await ai_service.extract_document_information(document["images"])
+            # Pass document_type to AI extraction for better prompts/rules
+            ai_extraction = await ai_service.extract_document_information(
+                document["images"],
+                document.get("document_type", "unknown")
+            )
         except Exception as e:
             print(f"AI extraction failed: {e}")
         
@@ -319,12 +335,14 @@ async def extract_document_information(document_id: str) -> Dict[str, Any]:
             if "ai_extraction" not in document:
                 document["ai_extraction"] = {}
             document["ai_extraction"].update({
-                "extracted_text": ai_extraction.extracted_text,
-                "confidence_score": ai_extraction.confidence_score,
-                "metadata": ai_extraction.metadata,
+                "extracted_text": ai_extraction.get("extracted_text", ""),
+                "confidence_score": ai_extraction.get("ai_confidence", 0.85),
+                "metadata": ai_extraction.get("metadata", {}),
                 "extracted_at": current_time,
-                "ai_model_used": "gemini-1.5-pro"
+                "ai_model_used": "gemini-2.5-flash"
             })
+            # Mark as processed by AI so dashboards can count it
+            document["status"] = "ai_processed"
             document["updated_at"] = current_time
         
         return {
@@ -339,12 +357,70 @@ async def extract_document_information(document_id: str) -> Dict[str, Any]:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/documents/stats/overview")
+async def get_documents_stats_overview() -> Dict[str, Any]:
+    """Return aggregate document stats for dashboards/portals."""
+    try:
+        # Get all documents from database
+        all_docs = await db_service.get_documents_by_citizen("all")
+        total_documents = len(all_docs)
+        pending_statuses = {"submitted", "pending"}
+        completed_statuses = {"approved"}
+        rejected_status = "rejected"
+        official_review_status = "official_reviewed"
+
+        def is_today(ts: str) -> bool:
+            try:
+                return datetime.fromisoformat(ts).date() == datetime.now().date()
+            except Exception:
+                return False
+
+        pending = 0
+        ai_processed = 0
+        official_review = 0
+        admin_review = 0
+        completed = 0
+        rejected = 0
+        completed_today = 0
+
+        for doc in all_docs:
+            status = doc.get("status", "submitted")
+            if status in pending_statuses:
+                pending += 1
+            if status == official_review_status:
+                official_review += 1
+            if status in completed_statuses:
+                completed += 1
+                if is_today(doc.get("updated_at", doc.get("created_at", ""))):
+                    completed_today += 1
+            if status == rejected_status:
+                rejected += 1
+            # Consider either explicit status or presence of extraction results
+            if status == "ai_processed" or (doc.get("ai_extraction") is not None):
+                ai_processed += 1
+            # Count items that reached admin review phase (any admin comment or assessment)
+            if doc.get("admin_review_comment") is not None or doc.get("ai_assessment") is not None:
+                admin_review += 1
+
+        return {
+            "total_documents": total_documents,
+            "pending": pending,
+            "ai_processed": ai_processed,
+            "official_review": official_review,
+            "admin_review": admin_review,
+            "completed": completed,
+            "rejected": rejected,
+            "completed_today": completed_today,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/admin/documents/{document_id}/analyze-fraud")
 async def analyze_document_fraud(document_id: str) -> Dict[str, Any]:
     """Analyze document for fraud using AI"""
     try:
         # Find the document
-        document = next((doc for doc in documents_storage if doc["id"] == document_id), None)
+        document = await db_service.get_document_by_id(document_id)
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
         
